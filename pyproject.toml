@@ -1,0 +1,114 @@
+[project]
+name = "festo-dev-fluid-control"
+version = "0.3.0"
+description = "Reference implementation of controls for pressure-over-liquid-based fluid controls from Festo"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+]
+keywords = ["Festo", "Pipettor", "Pipetting", "Liquid", "Handling", "Lab", "Automation"]
+readme = {file = "README.md", content-type = "text/markdown"}
+authors = [
+    {name = "Kyle Wardlow", email = "kyle.wardlow@festo.com"},
+    {name = "Joshua Dang", email = "joshua.dang@festo.com"},
+]
+requires-python = ">=3.10"
+dependencies = [
+    "festo-pgva>=0.2.1",
+    "festo-vaem>=0.2.1",
+    "festo-dev-applied-motion>=0.2.0",
+    "festo-dev-configurator",
+]
+
+[project.urls]
+Homepage = "https://github.com/Festo-se/festo-dev-fluid-control/"
+Repository = "https://github.com/Festo-se/festo-dev-fluid-control.git"
+Issues = "https://github.com/Festo-se/festo-dev-fluid-control/issues"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.13"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "ruff>=0.15.11",
+    "ty>=0.0.32"
+]
+docs = [
+    "mkdocs>=1.6.1,<2",
+    "mkdocs-autoapi>=0.4.1",
+    "mkdocs-autorefs>=1.4.2",
+    "mkdocs-include-markdown-plugin>=7.1.5",
+    "mkdocs-material>=9.6.14",
+    "mkdocstrings[python]>=0.29.1",
+    "mkdocs-codeinclude-plugin>=0.2.1",  
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "hardware: marks tests that require connected hardware (deselect with -m 'not hardware')",
+]
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true } }]
+
+[tool.uv.build-backend]
+module-name = "fluid_control"
+
+[tool.uv.sources]
+festo-dev-applied-motion = { path = "../festo-dev-applied-motion", editable = true }
+festo-dev-configurator = { path = "../festo-dev-configurator", editable = true }
+
+[tool.ty.src]
+include = [
+    "src"
+]
+exclude = [
+    "tests"
+]
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py314"
+src = ["src", "examples"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".vscode",
+    ".venv",
+    ".pytest_cache",
+    "tests",
+]
+fix = true
+show-fixes = true
+
+[tool.ruff.lint]
+select = ["D", "E4", "E7", "E9", "F", "C901", "B", "S"]
+ignore = ["D203", "D212"]
+exclude = ["tests/*",]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore D100 and D104 in all __init__.py files
+"__init__.py" = ["D100", "D104"]
+
+# [tool.ruff.lint.pydocstyle]
+# convention = "google"
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+line-ending = "auto"
+docstring-code-format = true
+exclude = [
+    ".git",
+    "__pycache__",
+    ".vscode",
+    ".venv",
+    ".pytest_cache",
+]

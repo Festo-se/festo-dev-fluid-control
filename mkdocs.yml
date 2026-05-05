@@ -1,0 +1,86 @@
+site_name: Festo Fluidic Control -- Python-based control for Festo Pipettors and
+  Dispensers
+site_url: https://festo-se.github.io/festo-dev-fluid-control/
+repo_url: https://github.com/Festo-se/festo-dev-fluid-control
+
+site_dir: public
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: System preference
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Light mode
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Dark mode
+
+  logo: img/Festo_Logo_Caerul_Web.svg
+  favicon: img/method.png
+  #custom_dir: overrides
+  features: navigation.sections content.code.copy content.tooltips
+
+use_directory_urls: true
+#strict: true
+
+markdown_extensions:
+  - abbr
+  - attr_list
+  - footnotes
+  - pymdownx.highlight:
+      anchor_linenums: true
+      linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: class
+          class: highlight
+          format:
+
+            !!python/name:pymdownx.highlight.highlight ""
+plugins:
+  - codeinclude
+  - search
+  - include-markdown
+  - autorefs:
+      resolve_closest: true
+  - mkdocs-autoapi:
+      autoapi_dir: src
+      autoapi_add_nav_entry: true
+      autoapi_generate_api_docs: true
+      autoapi_file_patterns:
+        - "*.py"
+
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths:
+            #[.,src,examples]
+            - src
+            - examples
+          options:
+            show_source: true
+            docstring_style: google
+
+extra_css:
+  - css/extra.css
+  - https://www.festo.com/fonts/fonts.css
+
+nav:
+  - Home: "index.md"
+  - Examples:
+      - Basic usage: "examples/examples.md"
+
+  - Issues Tracker:
+      - "Report and Issue with package": "https://github.com/Festo-se/festo-dev-fluid-control/issues"
