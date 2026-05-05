@@ -18,7 +18,6 @@ dependencies = [
     "festo-pgva>=0.2.1",
     "festo-vaem>=0.2.1",
     "festo-dev-applied-motion>=0.2.0",
-    "festo-dev-configurator",
 ]
 
 [project.urls]
@@ -61,8 +60,7 @@ cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true } }]
 module-name = "fluid_control"
 
 [tool.uv.sources]
-festo-dev-applied-motion = { path = "../festo-dev-applied-motion", editable = true }
-festo-dev-configurator = { path = "../festo-dev-configurator", editable = true }
+festo-dev-applied-motion = { git = "https://github.com/Festo-se/festo-dev-applied-motion" }
 
 [tool.ty.src]
 include = [
