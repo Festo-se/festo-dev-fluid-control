@@ -18,6 +18,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
       - name: Install Python 3.13
         run: uv python install 3.13
+      - name: Register token
+        run: echo "${{ secrets.PRIVATE_REPO_TOKEN }}" | gh auth login --with-token
+      - name: Setup Git
+        run: gh auth setup-git
       - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
       - uses: actions/cache@v4
         with:
