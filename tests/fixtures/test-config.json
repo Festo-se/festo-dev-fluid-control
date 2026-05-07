@@ -53,12 +53,16 @@
                                     "operational-mechanism": "direct",
                                     "actuation-principle": "solenoid",
                                     "latching": false,
-                                    "media-separated": false
+                                    "media-separated": false,
+                                    "error-handling": true
                                 }
                             },
                             "2": {
                                 "typecode": "VYKC",
-                                "type": "NC"
+                                "type": {
+                                    "error-handling": "false",
+                                    "closure": "NC"
+                                }
                             }
                         },
                         "uuid": 2,
@@ -213,7 +217,8 @@
                                     "operational-mechanism": "direct",
                                     "actuation-principle": "solenoid",
                                     "latching": false,
-                                    "media-separated": false
+                                    "media-separated": false,
+                                    "error-handling": true
                                 }
                             }
                         },

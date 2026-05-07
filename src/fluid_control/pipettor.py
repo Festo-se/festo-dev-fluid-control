@@ -5,7 +5,7 @@
 import logging
 
 from fluid_control.fluid_control import PressureOverLiquidControl
-from festo_gantry.gantry import FestoAxis
+from applied_motion import Axis
 # from configurator import dynamic_importer
 
 logger = logging.getLogger(__name__)
@@ -25,8 +25,8 @@ class Pipettor(PressureOverLiquidControl):
         self,
         config: dict,
         component_id: str = "pipettor_1",
-        mount_arm: FestoAxis | None = None,
-        disable_axes: tuple[FestoAxis, ...] = (),
+        mount_arm: Axis | None = None,
+        disable_axes: tuple[Axis, ...] = (),
     ):
         """
         Initialise the Pipettor from an instrument configuration dict.
@@ -36,7 +36,7 @@ class Pipettor(PressureOverLiquidControl):
                 by ``component_id`` is extracted and used.
             component_id (str): Key of this pipettor instance inside
                 ``config["components"]``. Defaults to ``"pipettor_1"``.
-            mount_arm: Axis (``FestoAxis``) used for tip pickup/eject motion.
+            mount_arm: ``Axis`` used for tip pickup/eject motion.
                 If ``None`` the pipettor is static. Defaults to None.
             disable_axes (tuple): Axes to disable during tip engagement moves.
                 Defaults to ``()``.

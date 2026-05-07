@@ -13,7 +13,7 @@ import logging
 from typing import NoReturn
 
 from fluid_control.fluid_control import PressureOverLiquidControl
-from festo_gantry.gantry import FestoAxis
+from applied_motion import Axis
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,8 @@ class Dispenser(PressureOverLiquidControl):
         self,
         config: dict,
         component_id: str = "dispenser_1",
-        mount_arm: FestoAxis | None = None,
-        disable_axes: tuple[FestoAxis, ...] = (),
+        mount_arm: Axis | None = None,
+        disable_axes: tuple[Axis, ...] = (),
     ):
         """
         Initialize Dispenser class.
@@ -41,7 +41,7 @@ class Dispenser(PressureOverLiquidControl):
             config (dict): Dispenser configuration.
             component_id (str): Key of this dispenser instance inside
                 ``config["components"]``. Defaults to ``"dispenser_1"``.
-            mount_arm (FestoAxis | None, optional): Mobile arm the dispenser is mounted on, if one exists. Defaults to None.
+            mount_arm (Axis | None, optional): Mobile arm the dispenser is mounted on, if one exists. Defaults to None.
             disable_axes (tuple, optional): Axes to disable when doing specified actions. Defaults to ().
 
         """

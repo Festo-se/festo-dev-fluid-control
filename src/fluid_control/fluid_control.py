@@ -15,7 +15,7 @@ import math
 import logging
 from pgva import PGVA, PGVATCPConfig
 from vaem import VAEM, VAEMTCPConfig
-from festo_gantry.gantry import FestoAxis
+from applied_motion import Axis
 
 
 # Configure logging with timestamps
@@ -47,11 +47,11 @@ class PressureOverLiquidControl(FluidControl):
 
     def __init__(
         self,
-        config: dict,
-        mount_arm: FestoAxis | None = None,
-        disable_axes: tuple[FestoAxis, ...] = (),
+        config: dict,  # TODO: SUPPORT CONFIG FILENAME IMPORT
+        mount_arm: Axis | None = None,  # TODO: Take from config
+        disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
         component_type: str = "",
-        component_id: str = "",
+        component_id: str = "",  # TODO: Optional args to directly pass in existing pressure and valve control and skip config
     ) -> None:
         """
         Initialize a pressure-over-liquid fluid control module.
@@ -70,6 +70,7 @@ class PressureOverLiquidControl(FluidControl):
                 inside ``config["components"]``. Defaults to ``""``.
 
         """
+        # TODO: If neither config nor pressure/valve control passed in, init error
         self.component_type = component_type
         self.component_id = component_id
         logger.info(f"Initializing {component_type} (id={component_id!r})")
@@ -77,8 +78,8 @@ class PressureOverLiquidControl(FluidControl):
         self.active_channels = self.config["control_modules"]["valve"]["active_valve_terminals"]
         self.active_valve_count = len(self.active_channels)
 
-        self._init_pressure_control()  # TODO
-        self._init_valve_control()  # TODO
+        self._init_pressure_control()
+        self._init_valve_control()
         self.fluid_control_status = Status()
         self.channel_count = self.config["fluid-channel-count"]
         self.is_static = mount_arm is None  # TODO: make this a param input via config
@@ -94,7 +95,7 @@ class PressureOverLiquidControl(FluidControl):
         # self.dispense_pressure = self.config["calibration"]["dispense"]["pressure"]  # TODO: ditto
         self.valve_control_timing_functions = {}
 
-        self._set_all_calibrations()
+        self._set_all_calibrations()  # TODO: modify config such that multiple pressures can have calibration per process  in the json
         logger.info(
             f"{component_type} initialization complete — channels={self.active_channels}, "
             f"liquid_classes={list(self.config['calibration'].keys())}, "
@@ -132,7 +133,7 @@ class PressureOverLiquidControl(FluidControl):
 
         if config is None:
             config = self.config
-        ip = config["control_modules"]["pressure"]["interface"]["ip"]
+        ip = config["control_modules"]["pressure"]["interface"]["ip"]  # TODO: Unhardcode from TCP backend
         port = config["control_modules"]["pressure"]["interface"]["port"]
         self.pressure_control_config = PGVATCPConfig(
             interface=config["control_modules"]["pressure"]["interface"]["type"],
@@ -143,7 +144,9 @@ class PressureOverLiquidControl(FluidControl):
         self.pressure_control = PGVA(config=self.pressure_control_config)
         logger.debug(f"Pressure controller {name} initialized at {ip}:{port}")
 
-    def _init_valve_control(self, config: dict | None = None) -> None:
+    def _init_valve_control(
+        self, config: dict | None = None
+    ) -> None:  # TODO: Make sure active_valve_terminals is being used appropriately
         name = self.config["control_modules"]["valve"]["name"]
         logger.debug(f"Initializing valve control module {name}.")
         """
@@ -168,6 +171,15 @@ class PressureOverLiquidControl(FluidControl):
         )
         self.valve_control = VAEM(config=self.valve_control_config)
         logger.debug(f"Valve controller {name} initialized at {ip}:{port}")
+
+        error_handling = [
+            (status.values())["type"]["error-handling"] for status in config["control_modules"]["valve"]["valve-type"]
+        ]
+
+        self._valve_error_handling_status = all(error_handling)
+        self.valve_control.set_error_handling(activate=int(self._valve_error_handling_status))
+        logger.debug(f"Valve controller {name} module-set error handling status: {self._valve_error_handling_status}")
+        logger.debug(f"Valve controller {name} actual error handling status: {self.valve_control.get_error_handling()}")
 
     def _get_calibration_values(self, liquid_class: str, process: str) -> tuple[dict, dict]:
         """Get the calibration values from the calibration curves."""

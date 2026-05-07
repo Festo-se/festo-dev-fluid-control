@@ -15,7 +15,7 @@ All tests are marked ``@pytest.mark.hardware`` and excluded from the default
 
 import pytest
 
-from pipettor import Dispenser, Pipettor
+from fluid_control import Dispenser, Pipettor
 
 
 pytestmark = pytest.mark.hardware
