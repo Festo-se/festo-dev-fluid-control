@@ -17,7 +17,7 @@ requires-python = ">=3.10"
 dependencies = [
     "festo-pgva>=0.2.1",
     "festo-vaem>=0.2.1",
-    "festo-dev-applied-motion>=0.2.0",
+    "festo-dev-applied-motion>=0.3.0",
 ]
 
 [project.urls]
