@@ -25,6 +25,7 @@ hardware_dispenser
 """
 
 import json
+import socket
 from os import getenv
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -83,6 +84,9 @@ def _make_component(*, channels: int, active_channels: list[int]) -> dict:
                 "name": "vaem",
                 "valve_count": channels,
                 "active_valve_terminals": active_channels,
+                "valve_type": {
+                    str(ch): {"type": {"error-handling": True}} for ch in active_channels
+                },
                 "uuid": 2,
                 "interface": {"type": "tcp/ip", "ip": "192.168.10.27", "port": 502},
             },
@@ -349,16 +353,25 @@ def test_pipettor(mocker, test_config):
 # ---------------------------------------------------------------------------
 # test hardware fixtures — real devices, IPs taken from test-config.json
 #
-# Opt-in by setting FESTO_HARDWARE_TESTS=1.  The IPs are read directly from
-# the fixture file so no additional environment variables are required.
 # Run with:
-#     FESTO_HARDWARE_TESTS=1 uv run pytest -m hardware -v
+#     uv run pytest -m hardware -v
 # ---------------------------------------------------------------------------
 
-_HARDWARE_SKIP_REASON = (
-    "FESTO_HARDWARE_TESTS not set to '1' — skipping hardware tests. "
-    "Set FESTO_HARDWARE_TESTS=1 to run against live hardware."
-)
+
+def _is_reachable(host: str, port: int, timeout: float = 1.0) -> bool:
+    """Return True if a TCP connection to host:port succeeds within timeout seconds."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _require_reachable(hosts: list[tuple[str, int]]) -> None:
+    """Skip the current test if any (host, port) pair is unreachable."""
+    unreachable = [f"{h}:{p}" for h, p in hosts if not _is_reachable(h, p)]
+    if unreachable:
+        pytest.skip(f"Hardware unreachable: {', '.join(unreachable)}")
 
 
 @pytest.fixture(scope="module")
@@ -366,10 +379,16 @@ def test_hardware_dispenser(test_config):
     """Real Dispenser connected to the test hardware (PGVA 192.168.10.102, VAEM 192.168.10.27).
 
     Module-scoped so the TCP connections are opened once per test module.
-    Skipped unless ``FESTO_HARDWARE_TESTS=1`` is set in the environment.
+    Skipped automatically if either device is unreachable.
+    Run with::
+
+        uv run pytest -m hardware -v
     """
-    if getenv("FESTO_HARDWARE_TESTS") != "1":
-        pytest.skip(_HARDWARE_SKIP_REASON)
+    modules = test_config["component_config"]["components"]["dispenser_1"]["control_modules"]
+    _require_reachable([
+        (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
+        (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
+    ])
     return Dispenser(config=test_config["component_config"])
 
 
@@ -378,8 +397,14 @@ def test_hardware_pipettor(test_config):
     """Real Pipettor connected to the test hardware (PGVA 192.168.0.29, VAEM 192.168.0.1).
 
     Module-scoped so the TCP connections are opened once per test module.
-    Skipped unless ``FESTO_HARDWARE_TESTS=1`` is set in the environment.
+    Skipped automatically if either device is unreachable.
+    Run with::
+
+        uv run pytest -m hardware -v
     """
-    if getenv("FESTO_HARDWARE_TESTS") != "1":
-        pytest.skip(_HARDWARE_SKIP_REASON)
+    modules = test_config["component_config"]["components"]["pipettor_1"]["control_modules"]
+    _require_reachable([
+        (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
+        (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
+    ])
     return Pipettor(config=test_config["component_config"])

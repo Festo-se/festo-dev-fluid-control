@@ -237,12 +237,12 @@ class TestTestPipettorLiquidClasses:
     def test_aspirate_pressure_is_minus_100_mbar(self, test_pipettor, liquid_class):
         assert test_pipettor.pressures[liquid_class]["aspirate"] == -100
 
-    def test_dispense_timing_functions_built_for_calibration_keys_0_through_7(self, test_pipettor):
+    def test_dispense_timing_functions_built_for_calibration_keys_1_through_8(self, test_pipettor):
         """Calibration uses string keys '1'-'8' (channel-index notation)."""
         dispense = test_pipettor.valve_control_timing_functions["water"]["dispense"]
         assert set(dispense.keys()) == {str(i) for i in range(1,9)}
 
-    def test_aspirate_timing_functions_built_for_calibration_keys_0_through_7(self, test_pipettor):
+    def test_aspirate_timing_functions_built_for_calibration_keys_1_through_8(self, test_pipettor):
         aspirate = test_pipettor.valve_control_timing_functions["water"]["aspirate"]
         assert set(aspirate.keys()) == {str(i) for i in range(1,9)}
 

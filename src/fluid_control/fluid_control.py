@@ -173,13 +173,16 @@ class PressureOverLiquidControl(FluidControl):
         logger.debug(f"Valve controller {name} initialized at {ip}:{port}")
 
         error_handling = [
-            (status.values())["type"]["error-handling"] for status in config["control_modules"]["valve"]["valve-type"]
+            valve_info["type"]["error-handling"]
+            for valve_info in config["control_modules"]["valve"]["valve_type"].values()
         ]
 
         self._valve_error_handling_status = all(error_handling)
         self.valve_control.set_error_handling(activate=int(self._valve_error_handling_status))
         logger.debug(f"Valve controller {name} module-set error handling status: {self._valve_error_handling_status}")
-        logger.debug(f"Valve controller {name} actual error handling status: {self.valve_control.get_error_handling()}")
+        logger.debug(
+            f"Valve controller {name} actual error handling status: {self.valve_control.get_error_handling_status()}"
+        )
 
     def _get_calibration_values(self, liquid_class: str, process: str) -> tuple[dict, dict]:
         """Get the calibration values from the calibration curves."""

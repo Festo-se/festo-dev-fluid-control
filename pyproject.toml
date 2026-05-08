@@ -32,7 +32,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
-    "pytest-cov>=6.0.0",
+    "pytest-cov>=7.0.0",
     "pytest-mock>=3.14.0",
     "ruff>=0.15.11",
     "ty>=0.0.32"
@@ -49,8 +49,9 @@ docs = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not hardware'"
 markers = [
-    "hardware: marks tests that require connected hardware (deselect with -m 'not hardware')",
+    "hardware: marks tests that require connected hardware (run with -m hardware)",
 ]
 
 [tool.uv]
