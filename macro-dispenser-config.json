@@ -1,0 +1,538 @@
+{
+    "component_config": {
+        "metadata": {},
+        "components": {
+            "dispenser_1": {
+                "component_class": "dispenser",
+                "uuid": "0000-000000000-000000-001",
+                "type": "pressure-over-liquid",
+                "fluid-channel-count": 2,
+                "control_mode": "python",
+                "control_modules": {
+                    "pressure": {
+                        "name": "pgva",
+                        "control_mode": "python",
+                        "control_package": "festo-pgva",
+                        "control_library": "pgva",
+                        "control_module": "PGVA",
+                        "actuating_caller": {
+                            "method": "set_output_pressure",
+                            "parameters": "pressure"
+                        },
+                        "uuid": 1,
+                        "interface": {
+                            "type": "tcp/ip",
+                            "ip": "192.168.10.102",
+                            "port": 502
+                        }
+                    },
+                    "valve": {
+                        "name": "vaem",
+                        "control_mode": "python",
+                        "control_package": "festo-vaem",
+                        "control_library": "vaem",
+                        "control_module": "VAEM",
+                        "actuating_caller": {
+                            "method": "open_valves",
+                            "parameters": {
+                                "index": "time"
+                            }
+                        },
+                        "valve_count": 2,
+                        "active_valve_terminals": [
+                            1,
+                            2
+                        ],
+                        "valve_type": {
+                            "1": {
+                                "typecode": "VYKA",
+                                "type": {
+                                    "ports": 2,
+                                    "switching-positions": 2,
+                                    "closure": "NC",
+                                    "operational-mechanism": "direct",
+                                    "actuation-principle": "solenoid",
+                                    "latching": false,
+                                    "media-separated": false,
+                                    "error-handling": true
+                                }
+                            },
+                            "2": {
+                                "typecode": "VYKC",
+                                "type": {
+                                    "error-handling": false,
+                                    "closure": "NC"
+                                }
+                            }
+                        },
+                        "uuid": 2,
+                        "interface": {
+                            "type": "tcp/ip",
+                            "ip": "192.168.10.27",
+                            "port": 502
+                        }
+                    }
+                },
+                "calibration": {
+                    "water": {
+                        "dispense": {
+                            "flow_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0,
+                                    "flow_offset": 0.826181241
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0,
+                                    "flow_offset": 0.878542698
+                                }
+                            },
+                            "volume_offset_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.321305707,
+                                    "volume_offset": -4.857648804
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.536258682,
+                                    "volume_offset": -5.947083862
+                                }
+                            },
+                            "parameters": {
+                                "pressure": 70
+                            }
+                        }
+                    },
+                    "ethylene-glycol10%": {
+                        "dispense": {
+                            "flow_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0,
+                                    "flow_offset": 0.826181241
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0,
+                                    "flow_offset": 0.878542698
+                                }
+                            },
+                            "volume_offset_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.321305707,
+                                    "volume_offset": -4.857648804
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.536258682,
+                                    "volume_offset": -5.947083862
+                                }
+                            },
+                            "parameters": {
+                                "pressure": 70
+                            }
+                        }
+                    },
+                    "third-liquid-class": {
+                        "dispense": {
+                            "flow_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0,
+                                    "flow_offset": 0.826181241
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0,
+                                    "flow_offset": 0.878542698
+                                }
+                            },
+                            "volume_offset_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.321305707,
+                                    "volume_offset": -4.857648804
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.536258682,
+                                    "volume_offset": -5.947083862
+                                }
+                            },
+                            "parameters": {
+                                "pressure": 70
+                            }
+                        }
+                    }
+                },
+                "mounted": true,
+                "mount_axis": "Z",
+                "mount_axis_control": "CODESYS-PLC"
+            },
+            "pipettor_1": {
+                "component_class": "pipettor",
+                "uuid": "0000-000000000-000000-002",
+                "type": "pressure-over-liquid",
+                "fluid-channel-count": 8,
+                "control_mode": "python",
+                "control_modules": {
+                    "pressure": {
+                        "name": "pgva",
+                        "control_mode": "python",
+                        "control_package": "festo-pgva",
+                        "control_library": "pgva",
+                        "control_module": "pgva",
+                        "actuating_caller": {
+                            "method": "set_output_pressure",
+                            "parameters": "pressure"
+                        },
+                        "uuid": 1,
+                        "interface": {
+                            "type": "tcp/ip",
+                            "ip": "192.168.0.29",
+                            "port": 502
+                        }
+                    },
+                    "valve": {
+                        "name": "vaem",
+                        "control_mode": "python",
+                        "control_package": "festo-vaem",
+                        "control_library": "vaem",
+                        "control_module": "VAEM",
+                        "actuating_caller": {
+                            "method": "open_valves",
+                            "parameters": {
+                                "index": "time"
+                            }
+                        },
+                        "valve_count": 8,
+                        "active_valve_terminals": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7,
+                            8
+                        ],
+                        "valve_type": {
+                            "all": {
+                                "typecode": "VYKA",
+                                "type": {
+                                    "ports": 2,
+                                    "switching-positions": 2,
+                                    "closure": "NC",
+                                    "operational-mechanism": "direct",
+                                    "actuation-principle": "solenoid",
+                                    "latching": false,
+                                    "media-separated": false,
+                                    "error-handling": true
+                                }
+                            }
+                        },
+                        "uuid": 2,
+                        "interface": {
+                            "type": "tcp/ip",
+                            "ip": "192.168.0.1",
+                            "port": 502
+                        }
+                    }
+                },
+                "calibration": {
+                    "water": {
+                        "aspirate": {
+                            "flow_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.006111421,
+                                    "flow_offset": 1.312909499
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.004794627,
+                                    "flow_offset": 1.396112081
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.006178665,
+                                    "flow_offset": 1.348172353
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.005257974,
+                                    "flow_offset": 1.343057531
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.005388912,
+                                    "flow_offset": 1.326325254
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.005131299,
+                                    "flow_offset": 1.344640434
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.005629979,
+                                    "flow_offset": 1.380136015
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.005685997,
+                                    "flow_offset": 1.312297107
+                                }
+                            },
+                            "volume_offset_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.505804134,
+                                    "volume_offset": -10.643569
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.84392775,
+                                    "volume_offset": -12.37390064
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.524153843,
+                                    "volume_offset": -10.61967208
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.701143358,
+                                    "volume_offset": -13.67848209
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.65614762,
+                                    "volume_offset": -11.64322993
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.697958209,
+                                    "volume_offset": -12.0802947
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.79460032,
+                                    "volume_offset": -12.2670195
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.657661357,
+                                    "volume_offset": -13.76288032
+                                }
+                            },
+                            "parameters": {
+                                "pressure": -100
+                            }
+                        },
+                        "dispense": {
+                            "flow_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.0038281,
+                                    "flow_offset": 0.826181241
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.002984967,
+                                    "flow_offset": 0.878542698
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.003853141,
+                                    "flow_offset": 0.848381348
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.003271288,
+                                    "flow_offset": 0.845196102
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.003353774,
+                                    "flow_offset": 0.834688975
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.003193659,
+                                    "flow_offset": 0.846189041
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.003502828,
+                                    "flow_offset": 0.868563752
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.003546353,
+                                    "flow_offset": 0.825845567
+                                }
+                            },
+                            "volume_offset_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.321305707,
+                                    "volume_offset": -4.857648804
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.536258682,
+                                    "volume_offset": -5.947083862
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.335656272,
+                                    "volume_offset": -4.844234604
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.447583845,
+                                    "volume_offset": -6.775058281
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.419307364,
+                                    "volume_offset": -5.498337064
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.445181147,
+                                    "volume_offset": -5.76876463
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.506617318,
+                                    "volume_offset": -5.892657497
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.419382823,
+                                    "volume_offset": -6.829536741
+                                }
+                            },
+                            "parameters": {
+                                "pressure": 70
+                            }
+                        }
+                    },
+                    "ethylene-glycol10%": {
+                        "aspirate": {
+                            "flow_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.006111421,
+                                    "flow_offset": 1.312909499
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.004794627,
+                                    "flow_offset": 1.396112081
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.006178665,
+                                    "flow_offset": 1.348172353
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.005257974,
+                                    "flow_offset": 1.343057531
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.005388912,
+                                    "flow_offset": 1.326325254
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.005131299,
+                                    "flow_offset": 1.344640434
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.005629979,
+                                    "flow_offset": 1.380136015
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.005685997,
+                                    "flow_offset": 1.312297107
+                                }
+                            },
+                            "volume_offset_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.505804134,
+                                    "volume_offset": -10.643569
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.84392775,
+                                    "volume_offset": -12.37390064
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.524153843,
+                                    "volume_offset": -10.61967208
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.701143358,
+                                    "volume_offset": -13.67848209
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.65614762,
+                                    "volume_offset": -11.64322993
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.697958209,
+                                    "volume_offset": -12.0802947
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.79460032,
+                                    "volume_offset": -12.2670195
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.657661357,
+                                    "volume_offset": -13.76288032
+                                }
+                            },
+                            "parameters": {
+                                "pressure": -100
+                            }
+                        },
+                        "dispense": {
+                            "flow_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.0038281,
+                                    "flow_offset": 0.826181241
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.002984967,
+                                    "flow_offset": 0.878542698
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.003853141,
+                                    "flow_offset": 0.848381348
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.003271288,
+                                    "flow_offset": 0.845196102
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.003353774,
+                                    "flow_offset": 0.834688975
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.003193659,
+                                    "flow_offset": 0.846189041
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.003502828,
+                                    "flow_offset": 0.868563752
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.003546353,
+                                    "flow_offset": 0.825845567
+                                }
+                            },
+                            "volume_offset_coefficients": {
+                                "1": {
+                                    "channel_index_coeff": 0.321305707,
+                                    "volume_offset": -4.857648804
+                                },
+                                "2": {
+                                    "channel_index_coeff": 0.536258682,
+                                    "volume_offset": -5.947083862
+                                },
+                                "3": {
+                                    "channel_index_coeff": 0.335656272,
+                                    "volume_offset": -4.844234604
+                                },
+                                "4": {
+                                    "channel_index_coeff": 0.447583845,
+                                    "volume_offset": -6.775058281
+                                },
+                                "5": {
+                                    "channel_index_coeff": 0.419307364,
+                                    "volume_offset": -5.498337064
+                                },
+                                "6": {
+                                    "channel_index_coeff": 0.445181147,
+                                    "volume_offset": -5.76876463
+                                },
+                                "7": {
+                                    "channel_index_coeff": 0.506617318,
+                                    "volume_offset": -5.892657497
+                                },
+                                "8": {
+                                    "channel_index_coeff": 0.419382823,
+                                    "volume_offset": -6.829536741
+                                }
+                            },
+                            "parameters": {
+                                "pressure": 70
+                            }
+                        }
+                    }
+                },
+                "mounted": true,
+                "mount_axis": "Z",
+                "mount_axis_control": "CODESYS-PLC"
+            },
+            "gantry": "TODO"
+        }
+    }
+}
