@@ -52,6 +52,8 @@ class PressureOverLiquidControl(FluidControl):
         disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
         component_type: str = "",
         component_id: str = "",  # TODO: Optional args to directly pass in existing pressure and valve control and skip config
+        pressure_control=None,
+        valve_control=None,
     ) -> None:
         """
         Initialize a pressure-over-liquid fluid control module.
@@ -78,8 +80,16 @@ class PressureOverLiquidControl(FluidControl):
         self.active_channels = self.config["control_modules"]["valve"]["active_valve_terminals"]
         self.active_valve_count = len(self.active_channels)
 
-        self._init_pressure_control()
-        self._init_valve_control()
+        if pressure_control is not None:
+            self.pressure_control = pressure_control
+        else:
+            self._init_pressure_control()
+
+        if valve_control is not None:
+            self.valve_control = valve_control
+        else:
+            self._init_valve_control()
+
         self.fluid_control_status = Status()
         self.channel_count = self.config["fluid-channel-count"]
         self.is_static = mount_arm is None  # TODO: make this a param input via config
