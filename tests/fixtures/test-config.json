@@ -1,7 +1,14 @@
 {
+    "_comment": "Festo component control config. General config covering fluid control and motion.",
+    "spec_version": "3.0",
+    "system_config": {
+        "metadata": {}
+    },
     "component_config": {
         "metadata": {},
         "components": {
+            "macro-dispenser": {},
+            "micro-dispenser": {},
             "dispenser_1": {
                 "component_class": "dispenser",
                 "uuid": "0000-000000000-000000-001",
@@ -28,7 +35,35 @@
                 },
                 "control_mode": "python",
                 "control_modules": {
+                    "regulator": {
+                        "channel": 2,
+                        "type": "regulator",
+                        "name": "veab",
+                        "control_mode": "python",
+                        "control_package": "festo-applied-motion",
+                        "control_library": "gantry",
+                        "control_module": "Gantry",
+                        "control_backend": "fposbapi_client",
+                        "hooks": {
+                            "set": {
+                                "call": "set_veab",
+                                "parameters": {
+                                    "pressure": "int"
+                                }
+                            },
+                            "get": {
+                                "call": "get_veab",
+                                "parameters": null
+                            },
+                            "status": {
+                                "call": null,
+                                "parameters": null
+                            }
+                        }
+                    },
                     "pressure": {
+                        "channel": 1,
+                        "type": "generator",
                         "passed-by-init": false,
                         "name": "pgva",
                         "control_mode": "python",
@@ -47,7 +82,9 @@
                         }
                     },
                     "valve": {
+                        "type": "valve",
                         "passed-by-init": false,
+                        "multi-pressure": true,
                         "name": "vaem",
                         "control_mode": "python",
                         "control_package": "festo-vaem",
@@ -58,6 +95,10 @@
                             "parameters": {
                                 "index": "time"
                             }
+                        },
+                        "pressure_map": {
+                            "1": "pressure",
+                            "2": "regulator"
                         },
                         "valve_count": 2,
                         "active_valve_terminals": [
@@ -629,6 +670,305 @@
                     "Z"
                 ],
                 "concurrent_axes": null
+            },
+            "gantry_2": {
+                "_comment": "Canonical instantiation parameters for EdconAxis and Gantry in the SLAS-8 pipettor configuration. IPs and axis names sourced from festo-dev-fluid-control/slas-8-config.json.",
+                "component_spec_version": "2.0",
+                "component_class": "gantry",
+                "backend": "modbus",
+                "uuid": "0000-000000000-000000-000",
+                "control_mode": "python",
+                "control_package": "festo-edcon",
+                "control_library": "edcon",
+                "control_system": "edrive",
+                "control_bus": "com_modbus",
+                "control_handler": "motion_handler",
+                "control_modules": {
+                    "_comment": "TODO: Some way of indicating this is per-axis, to not hardwire deps.",
+                    "com_modbus": "ComModbus",
+                    "motion_handler": "MotionHandler"
+                },
+                "axis_count": 4,
+                "axis_connections": {
+                    "X": [
+                        "Y"
+                    ],
+                    "Y": [
+                        "ZP",
+                        "ZG"
+                    ]
+                },
+                "motion_ordering": {
+                    "forward": [
+                        "X",
+                        "Y",
+                        "ZP",
+                        "ZG"
+                    ],
+                    "reverse": [
+                        "ZG",
+                        "ZP",
+                        "Y",
+                        "X"
+                    ]
+                },
+                "concurrent_axes": [
+                    "X",
+                    "Y"
+                ],
+                "axes": {
+                    "X": {
+                        "name": "X",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "X-axis",
+                        "ip": "192.168.0.100",
+                        "port": null,
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "Y",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": {
+                                "frame": {
+                                    "name": "cabinet",
+                                    "uuid": null
+                                }
+                            }
+                        }
+                    },
+                    "Y": {
+                        "name": "Y",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "Y-axis",
+                        "ip": "192.168.0.101",
+                        "port": "",
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "X",
+                                        "uuid": null
+                                    },
+                                    {
+                                        "name": "ZP",
+                                        "uuid": null
+                                    },
+                                    {
+                                        "name": "ZG",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": null
+                        }
+                    },
+                    "ZG": {
+                        "name": "ZG",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "Z-axis with gripper",
+                        "ip": "192.168.0.102",
+                        "port": "",
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "Y",
+                                        "uuid": null
+                                    }
+                                ],
+                                "tools": [
+                                    {
+                                        "name": "gripper",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": null
+                        }
+                    },
+                    "ZP": {
+                        "name": "ZP",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "Z-axis with pipettor",
+                        "ip": "192.168.0.103",
+                        "port": "",
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "Y",
+                                        "uuid": null
+                                    }
+                                ],
+                                "tools": [
+                                    {
+                                        "name": "pipettor",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": null
+                        }
+                    }
+                }
+            },
+            "controller_1": {
+                "uuid": "1234-000000000-000000-000",
+                "type": {
+                    "typecode": "CECC-X",
+                    "architecture": "codesys"
+                },
+                "component_class": "plc",
+                "control_mode": "python",
+                "control_package": "festo-cpx-io",
+                "control_library": "cpx_io",
+                "control_system": "cpx_system",
+                "control_bus": "cpx_e",
+                "control_module": {
+                    "cpx_e": "CpxE"
+                },
+                "controller": {
+                    "eep": "CpxEEp"
+                },
+                "ip": "192.168.0.2",
+                "modules": {
+                    "eep": "CpxEEp",
+                    "e16di": "CpxE16Di",
+                    "e8do": "CpxE8Do",
+                    "e4iol": "CpxE4Iol"
+                },
+                "tools": [
+                    "macro-dispenser",
+                    "micro-dispenser"
+                ]
+            },
+            "controller_2": {
+                "uuid": "1234-000000000-000000-000",
+                "type": {
+                    "typecode": "CPX-E-EP",
+                    "architecture": "remote-io"
+                },
+                "component_class": "fieldbus",
+                "control_mode": "python",
+                "control_package": "festo-cpx-io",
+                "control_library": "cpx_io",
+                "control_system": "cpx_system",
+                "control_bus": "cpx_e",
+                "control_module": {
+                    "cpx_e": "CpxE"
+                },
+                "controller": {
+                    "eep": "CpxEEp"
+                },
+                "ip": "192.168.0.2",
+                "modules": {
+                    "eep": "CpxEEp",
+                    "e16di": "CpxE16Di",
+                    "e8do": "CpxE8Do",
+                    "e4iol": "CpxE4Iol"
+                },
+                "tools": [
+                    "gripper",
+                    "switch",
+                    "sensor"
+                ]
+            },
+            "sensor_1": {
+                "uuid": "1234-500000000-000000-000",
+                "type": "optical-switch",
+                "typecode": "SOOE--",
+                "positioning": {
+                    "type": "discrete",
+                    "positions": 2
+                },
+                "control_mode": "python",
+                "control_signal": "digital",
+                "controller_id": {
+                    "uuid": "1234-000000000-000000-000"
+                },
+                "control_library": "cpx_io",
+                "control_system": "cpx_system",
+                "control_bus": "cpx_e",
+                "control_module": {
+                    "cpx_e": "CpxE"
+                },
+                "controller": {
+                    "eep": "CpxEEp"
+                },
+                "controller_ip": "192.168.0.2",
+                "control_signal_module": {
+                    "e4iol": "CpxE4Iol"
+                },
+                "control_signal_channels": {
+                    "read": 0
+                },
+                "_comment": "TODO: Needs update to new spec"
+            },
+            "gripper_1": {
+                "_comment": "TODO: Needs update to new spec",
+                "uuid": "1234-500000000-000000-000",
+                "type": "parallel",
+                "typecode": "EHPS-16-A",
+                "positioning": {
+                    "type": "discrete",
+                    "positions": 2
+                },
+                "control_mode": "python",
+                "control_signal": "digital",
+                "controller_id": {
+                    "uuid": "1234-000000000-000000-000"
+                },
+                "control_library": "cpx_io",
+                "control_system": "cpx_system",
+                "control_bus": "cpx_e",
+                "control_module": {
+                    "cpx_e": "CpxE"
+                },
+                "controller": {
+                    "eep": "CpxEEp"
+                },
+                "controller_ip": "192.168.0.2",
+                "control_signal_module": {
+                    "e8do": "CpxE8Do"
+                },
+                "control_signal_channels": {
+                    "grip": 1,
+                    "release": 0
+                },
+                "sensor": {
+                    "type": "switch",
+                    "control_signal_module": {
+                        "e16di": "CpxE16Di"
+                    }
+                }
             }
         }
     }
