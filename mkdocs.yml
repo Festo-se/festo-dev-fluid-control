@@ -54,7 +54,7 @@ plugins:
       resolve_closest: true
   - mkdocs-autoapi:
       autoapi_dir: src
-      autoapi_add_nav_entry: true
+      autoapi_add_nav_entry: false
       autoapi_generate_api_docs: true
       autoapi_file_patterns:
         - "*.py"

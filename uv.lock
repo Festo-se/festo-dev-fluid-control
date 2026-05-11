@@ -365,7 +365,7 @@ teach = [
 
 [[package]]
 name = "festo-dev-fluid-control"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "festo-dev-applied-motion" },
