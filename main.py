@@ -16,7 +16,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[logging.FileHandler("applied_motion.log"), logging.StreamHandler()],
+    handlers=[logging.FileHandler("fluid_control.log"), logging.StreamHandler()],
 )
 
 _DEFAULT_FPOSBAPI_IP = "192.168.10.25"
