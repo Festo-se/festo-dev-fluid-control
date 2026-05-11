@@ -8,8 +8,9 @@
         "metadata": {},
         "components": {
             "macro-dispenser": {
+                "tool-id": 2,
                 "component_class": "dispenser",
-                "uuid": "0000-000000000-000000-001",
+                "uuid": "0000-000000000-000000-002",
                 "type": "pressure-over-liquid",
                 "fluid-channel-count": 2,
                 "mounted": true,
@@ -170,6 +171,7 @@
                 }
             },
             "micro-dispenser": {
+                "tool-id": 2,
                 "component_class": "dispenser",
                 "uuid": "0000-000000000-000000-001",
                 "type": "pressure-over-liquid",

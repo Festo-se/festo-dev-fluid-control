@@ -30,6 +30,7 @@ with fixture_path.open() as fh:
     cfg = json.load(fh)
     # TODO: Validate TCP connction with cfg["interface"]["type"] = "tcp/ip"
     components = cfg["component_config"]
+import pprint
 
 # Init gantry
 gantry = Gantry.from_config(components)
@@ -37,6 +38,7 @@ gantry = Gantry.from_config(components)
 # Init micro dispenser
 micro_dispenser = Dispenser(config=components, component_id="micro-dispenser")
 
+pprint.pprint(components)
 # Init macro dispenser
 macro_dispenser = Dispenser(
     config=components,

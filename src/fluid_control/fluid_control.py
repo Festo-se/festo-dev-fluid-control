@@ -76,8 +76,7 @@ class PressureOverLiquidControl(FluidControl):
         self.component_type = component_type
         self.component_id = component_id
         logger.info(f"Initializing {component_type} (id={component_id!r})")
-        if "component_config" in config:
-            parsed_config = config["component_config"]
+        parsed_config = config.get("component_config", config)
         self.config = parsed_config["components"][component_id]
         self.active_channels = self.config["control_modules"]["valve"]["active_valve_terminals"]
         self.active_valve_count = len(self.active_channels)
@@ -89,7 +88,7 @@ class PressureOverLiquidControl(FluidControl):
 
         if valve_control is not None:
             self.valve_control = valve_control
-            self._set_valve_error_handling(config)
+            self._set_valve_error_handling(self.config, component_id)
         else:
             self._init_valve_control()
 
@@ -189,12 +188,13 @@ class PressureOverLiquidControl(FluidControl):
         )
         self.valve_control = VAEM(config=self.valve_control_config)
         logger.debug(f"Valve controller {name} initialized at {ip}:{port}")
-        self._set_valve_error_handling(config)
+        self._set_valve_error_handling(config, name)
 
-    def _set_valve_error_handling(self, config):
+    def _set_valve_error_handling(self, config, name):
+        logger.debug(f"Valve controller {name} set error handling config: {self.config}")
         error_handling = [
             valve_info["type"]["error-handling"]
-            for valve_info in config["control_modules"]["valve"]["valve_type"].values()
+            for valve_info in self.config["control_modules"]["valve"]["valve_type"].values()
         ]
 
         self._valve_error_handling_status = all(error_handling)
