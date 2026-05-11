@@ -34,14 +34,33 @@
                 "control_mode": "python",
                 "control_modules": {
                     "pressure": {
+                        "type": "regulator",
                         "passed-by-init": true,
                         "name": "veab",
+                        "channel": 2,
                         "control_mode": "python",
                         "control_package": "festo-applied-motion",
                         "control_library": "gantry",
                         "control_module": "Gantry",
+                        "control_backend": "fposbapi_client",
+                        "hooks": {
+                            "set": {
+                                "call": "set_veab",
+                                "parameters": {
+                                    "pressure": "int"
+                                }
+                            },
+                            "get": {
+                                "call": "get_veab",
+                                "parameters": null
+                            },
+                            "status": {
+                                "call": null,
+                                "parameters": null
+                            }
+                        },
                         "actuating_caller": {
-                            "method": "_client.",
+                            "method": "_client.set_veab",
                             "parameters": "pressure"
                         },
                         "uuid": 1,
@@ -52,6 +71,7 @@
                         }
                     },
                     "valve": {
+                        "type": "valve",
                         "passed-by-init": true,
                         "name": "vaem",
                         "control_mode": "python",

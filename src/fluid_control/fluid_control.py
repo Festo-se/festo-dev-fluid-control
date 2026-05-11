@@ -76,7 +76,9 @@ class PressureOverLiquidControl(FluidControl):
         self.component_type = component_type
         self.component_id = component_id
         logger.info(f"Initializing {component_type} (id={component_id!r})")
-        self.config = config["components"][component_id]
+        if "component_config" in config:
+            parsed_config = config["component_config"]
+        self.config = parsed_config["components"][component_id]
         self.active_channels = self.config["control_modules"]["valve"]["active_valve_terminals"]
         self.active_valve_count = len(self.active_channels)
 
@@ -87,6 +89,7 @@ class PressureOverLiquidControl(FluidControl):
 
         if valve_control is not None:
             self.valve_control = valve_control
+            self._set_valve_error_handling(config)
         else:
             self._init_valve_control()
 
@@ -96,7 +99,7 @@ class PressureOverLiquidControl(FluidControl):
         if not self.is_static:
             self.mount_arm = mount_arm
         self.disable_axes = disable_axes
-        for valve in range(1, self.channel_count + 1):  # TODO for valve in self.active_channels
+        for valve in self.active_channels:  # TODO for valve in self.active_channels
             self.valve_control.deselect_valve(valve_id=valve)  # TODO
         self.set_pressures()
         # self.aspiration_pressure = self.config["calibration"]["aspirate"][
@@ -141,6 +144,11 @@ class PressureOverLiquidControl(FluidControl):
         if "pgva" not in self.config["control_modules"]["pressure"]["name"]:
             raise NotImplementedError("Pressure control without a PGVA is not implemented")
 
+        # pressure_configs = {
+        #     self.config["control_modules"]["pressure"]["channel"]: "pressure",
+        #     self.config["control_modules"]["regulator"]["channel"]: "regulator",
+        # }
+
         if config is None:
             config = self.config
         ip = config["control_modules"]["pressure"]["interface"]["ip"]  # TODO: Unhardcode from TCP backend
@@ -181,7 +189,9 @@ class PressureOverLiquidControl(FluidControl):
         )
         self.valve_control = VAEM(config=self.valve_control_config)
         logger.debug(f"Valve controller {name} initialized at {ip}:{port}")
+        self._set_valve_error_handling(config)
 
+    def _set_valve_error_handling(self, config):
         error_handling = [
             valve_info["type"]["error-handling"]
             for valve_info in config["control_modules"]["valve"]["valve_type"].values()
@@ -445,10 +455,17 @@ class PressureOverLiquidControl(FluidControl):
                 mix_dict, "dispense"
             )  # TODO: This needs to be an instance attribute dictionary that ensures all liquid is clear.
 
+    def _pressure_status_dispath(self):
+        pressure_control = self.pressure_control
+        if isinstance(pressure_control, PGVA):
+            return pressure_control.get_status_word()
+        else:
+            return "TODO: implement other status getter"
+
     def get_status(self) -> dict:
         """Return the status of the fluid_control."""
         status = {
-            "pgva": self.pressure_control.get_status_word(),
+            "pressure": self._pressure_status_dispath(),
             "vaem": self.valve_control.get_status(),
             "fluid_control_status": self.fluid_control_status.get_status(),
         }

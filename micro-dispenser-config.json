@@ -34,8 +34,10 @@
                 "control_mode": "python",
                 "control_modules": {
                     "pressure": {
+                        "type": "generator",
                         "passed-by-init": false,
                         "name": "pgva",
+                        "channel": 1,
                         "control_mode": "python",
                         "control_package": "festo-pgva",
                         "control_library": "pgva",
@@ -52,6 +54,7 @@
                         }
                     },
                     "valve": {
+                        "type": "valve",
                         "passed-by-init": false,
                         "name": "vaem",
                         "control_mode": "python",
@@ -64,7 +67,7 @@
                                 "index": "time"
                             }
                         },
-                        "valve_count": 2,
+                        "valve_count": 1,
                         "active_valve_terminals": [
                             1
                         ],

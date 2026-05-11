@@ -33,6 +33,8 @@ class Dispenser(PressureOverLiquidControl):
         component_id: str = "dispenser_1",
         mount_arm: Axis | None = None,
         disable_axes: tuple[Axis, ...] = (),
+        pressure_control=None,
+        valve_control=None,
     ):
         """
         Initialize Dispenser class.
@@ -45,7 +47,15 @@ class Dispenser(PressureOverLiquidControl):
             disable_axes (tuple, optional): Axes to disable when doing specified actions. Defaults to ().
 
         """
-        super().__init__(config, mount_arm, disable_axes, component_type="dispenser", component_id=component_id)
+        super().__init__(
+            config,
+            mount_arm,
+            disable_axes,
+            component_type="dispenser",
+            component_id=component_id,
+            pressure_control=pressure_control,
+            valve_control=valve_control,
+        )
 
     def aspirate(self, aspirate_dict: dict) -> NoReturn:
         """

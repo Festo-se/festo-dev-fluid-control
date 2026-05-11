@@ -27,6 +27,8 @@ class Pipettor(PressureOverLiquidControl):
         component_id: str = "pipettor_1",
         mount_arm: Axis | None = None,
         disable_axes: tuple[Axis, ...] = (),
+        pressure_control=None,
+        valve_control=None,
     ):
         """
         Initialise the Pipettor from an instrument configuration dict.
@@ -42,4 +44,12 @@ class Pipettor(PressureOverLiquidControl):
                 Defaults to ``()``.
 
         """
-        super().__init__(config, mount_arm, disable_axes, component_type="pipettor", component_id=component_id)
+        super().__init__(
+            config,
+            mount_arm,
+            disable_axes,
+            component_type="pipettor",
+            component_id=component_id,
+            pressure_control=pressure_control,
+            valve_control=valve_control,
+        )
