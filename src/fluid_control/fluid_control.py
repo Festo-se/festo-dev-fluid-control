@@ -211,6 +211,10 @@ class PressureOverLiquidControl(FluidControl):
 
         return (self.flow_offset_vars, self.volume_offset_vars)
 
+    def set_new_calibration(self, calib: dict):
+        self.config["calibration"] = calib
+        self._set_all_calibrations()
+
     def _set_all_calibrations(self) -> None:
         liquid_classes = list(self.config["calibration"].keys())
         logger.debug(f"Building timing functions for {len(liquid_classes)} liquid class(es): {liquid_classes}")

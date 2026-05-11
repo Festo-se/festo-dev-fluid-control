@@ -45,9 +45,7 @@ markdown_extensions:
       custom_fences:
         - name: class
           class: highlight
-          format:
-
-            !!python/name:pymdownx.highlight.highlight ""
+          format: !!python/name:pymdownx.highlight.highlight ""
 plugins:
   - codeinclude
   - search
@@ -76,11 +74,3 @@ plugins:
 extra_css:
   - css/extra.css
   - https://www.festo.com/fonts/fonts.css
-
-nav:
-  - Home: "index.md"
-  - Examples:
-      - Basic usage: "examples/examples.md"
-
-  - Issues Tracker:
-      - "Report and Issue with package": "https://github.com/Festo-se/festo-dev-fluid-control/issues"
