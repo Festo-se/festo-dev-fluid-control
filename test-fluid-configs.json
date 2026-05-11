@@ -171,7 +171,7 @@
                 }
             },
             "micro-dispenser": {
-                "tool-id": 2,
+                "tool-id": 1,
                 "component_class": "dispenser",
                 "uuid": "0000-000000000-000000-001",
                 "type": "pressure-over-liquid",
