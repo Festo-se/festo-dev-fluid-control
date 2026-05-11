@@ -1,6 +1,6 @@
 [project]
 name = "festo-dev-fluid-control"
-version = "0.3.0"
+version = "0.3.1"
 description = "Reference implementation of controls for pressure-over-liquid-based fluid controls from Festo"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -17,7 +17,7 @@ requires-python = ">=3.10"
 dependencies = [
     "festo-pgva>=0.2.1",
     "festo-vaem>=0.2.1",
-    "festo-dev-applied-motion>=0.3.0",
+    "festo-dev-applied-motion>=0.3.3",
 ]
 
 [project.urls]
