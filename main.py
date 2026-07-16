@@ -1,15 +1,18 @@
 """Hello."""
 
+import sys
 import json  # TODO: FestoConfiguration class with built in validators, etc
-from fluid_control import Dispenser, PressureControl
-from applied_motion import Gantry
 
-import json
+import time
 from os import getenv
 from pathlib import Path
 import logging
+
+import pprint
+
 from pgva import PGVA, PGVATCPConfig
 
+from fluid_control import Dispenser, PressureControl
 from applied_motion import Gantry
 
 logging.basicConfig(
@@ -19,7 +22,7 @@ logging.basicConfig(
     handlers=[logging.FileHandler("fluid_control.log"), logging.StreamHandler()],
 )
 
-_DEFAULT_FPOSBAPI_IP = "192.168.10.25"
+_DEFAULT_FPOSBAPI_IP = "192.168.0.50"
 _DEFAULT_FPOSBAPI_PORT = 1234
 
 
@@ -30,7 +33,6 @@ with fixture_path.open() as fh:
     cfg = json.load(fh)
     # TODO: Validate TCP connction with cfg["interface"]["type"] = "tcp/ip"
     components = cfg["component_config"]
-import pprint
 
 # Init gantry
 gantry = Gantry.from_config(components)
@@ -46,3 +48,11 @@ macro_dispenser = Dispenser(
     pressure_control=PressureControl(gantry),
     valve_control=micro_dispenser.valve_control,
 )
+
+micro_dispenser.pressure_control.set_output_pressure(449)
+time.sleep(1.5)
+pprint.pprint(gantry._client.set_veab(150))
+time.sleep(3)
+pprint.pprint(gantry._client.get_veab())  # TODO: get_veab() is hanging
+
+sys.exit()

@@ -7,7 +7,6 @@ Provides the base class hierarchy for all pipettor and dispenser fluid-handling
 operations, including pressure management, valve timing, tip pickup, and ejection.
 """
 
-from abc import ABC
 from collections.abc import Callable, Iterator, KeysView
 from time import sleep
 import json
@@ -28,19 +27,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class FluidControl(ABC):  # noqa: B024
-    """Marker base class for all fluid-control implementations."""
+# class FluidControl(ABC):  # noqa: B024
+#     """Marker base class for all fluid-control implementations."""
 
-    pass
-
-
-class MassFlowControl(FluidControl):
-    """Abstract Flow Control."""
-
-    pass
+#     pass
 
 
-class PressureOverLiquidControl(FluidControl):
+# class MassFlowControl(FluidControl):
+#     """Abstract Flow Control."""
+
+#     pass
+
+
+class PressureOverLiquidControl:
     """Abstract Pressure Over Liquid Control."""
 
     is_static: bool
@@ -48,10 +47,10 @@ class PressureOverLiquidControl(FluidControl):
     def __init__(
         self,
         config: dict,  # TODO: SUPPORT CONFIG FILENAME IMPORT
-        mount_arm: Axis | None = None,  # TODO: Take from config
-        disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
         component_type: str = "",
         component_id: str = "",  # TODO: Optional args to directly pass in existing pressure and valve control and skip config
+        mount_arm: Axis | None = None,  # TODO: Take from config
+        disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
         pressure_control=None,
         valve_control=None,
     ) -> None:
@@ -70,6 +69,12 @@ class PressureOverLiquidControl(FluidControl):
                 Defaults to ``""``.
             component_id (str): Instance name used to look up this component
                 inside ``config["components"]``. Defaults to ``""``.
+            pressure_control: Instance of already-instantiated pressure control device.
+                Opinionated choice that this is a PGVA with some support for
+                PLC-controlled VEAB at present.
+            valve_control: Instance of already-instantiated valve control device.
+                Opinionated choice that this is a VAEM with some support for single valves controlled
+                by the DO pin on the PGVA at present.
 
         """
         # TODO: If neither config nor pressure/valve control passed in, init error
@@ -212,6 +217,7 @@ class PressureOverLiquidControl(FluidControl):
         return (self.flow_offset_vars, self.volume_offset_vars)
 
     def set_new_calibration(self, calib: dict):
+        """Set the calibration values from the calibration curves."""
         self.config["calibration"] = calib
         self._set_all_calibrations()
 
@@ -411,57 +417,9 @@ class PressureOverLiquidControl(FluidControl):
             self.fluid_control_status.set_error()
             return [self.fluid_control_status.get_status(), str(e)]
 
-    def dispense(self, dispense_dict: dict) -> None:
-        """
-        Dispense liquid across one or more valve controller channels.
-
-        Args:
-            dispense_dict (dict): Mapping of channel IDs to channel-operation parameters.
-
-        """
-        logger.info(f"DISPENSE START: {dispense_dict}")
-        # TODO: Enable ability to set timing PER CLASS
-        self._handle_liquid(dispense_dict, process="dispense")
-
-    def aspirate(self, aspirate_dict: dict) -> None:
-        """
-        Aspirate liquid across one or more valve controller channels.
-
-        Args:
-            aspirate_dict (dict): Mapping of channel IDs to channel-operation parameters.
-
-        """
-        logger.info(f"ASPIRATE START: {aspirate_dict}")
-        self._handle_liquid(aspirate_dict, process="aspirate")
-
-    def mix(self, mix_dict: dict, cycles: int) -> None:
-        """
-        Aspirate and dispense repeatedly to mix liquid in the channels.
-
-        Args:
-            mix_dict (dict): Mapping of channel IDs to channel-operation parameters.
-            cycles (int): Number of aspirate/dispense cycles to execute.
-
-        Raises:
-            NotImplementedError: If the fluid_control is static (no mount arm configured).
-
-        """
-        logger.info(f"MIX START: {mix_dict}")
-        if self.is_static:
-            raise NotImplementedError(
-                "Axis not configured, fluid_control is configured to be static. Pass in the attachment axis to the constructor if this was done in error"
-            )
-
-        for _ in range(cycles):
-            self._handle_liquid(mix_dict, "aspirate")
-            # TODO: Raise fluid_control arms so no bubbles
-            self._handle_liquid(
-                mix_dict, "dispense"
-            )  # TODO: This needs to be an instance attribute dictionary that ensures all liquid is clear.
-
     def _pressure_status_dispath(self):
         pressure_control = self.pressure_control
-        if isinstance(pressure_control, PGVA):
+        if hasattr(pressure_control, "get_status_word"):
             return pressure_control.get_status_word()
         else:
             return "TODO: implement other status getter"
@@ -470,7 +428,7 @@ class PressureOverLiquidControl(FluidControl):
         """Return the status of the fluid_control."""
         status = {
             "pressure": self._pressure_status_dispath(),
-            "vaem": self.valve_control.get_status(),
+            "valve": self.valve_control.get_status(),
             "fluid_control_status": self.fluid_control_status.get_status(),
         }
         logger.debug(f"get_status: {status}")
@@ -517,94 +475,6 @@ class PressureOverLiquidControl(FluidControl):
             axis.acknowledge_faults()
             axis.enable_powerstage()
 
-    def eject_tips(self) -> list[int | str]:
-        """Eject tips from the fluid control module."""
-        logger.info("EJECT TIPS START")
-        if self.is_static:
-            raise NotImplementedError(
-                "Axis not configured, fluid_control is configured to be static. Pass in the attachment axis to the constructor if this was done in error"
-            )
-        self.fluid_control_status.set_busy()
-        self._disable_xy_axes()
-        try:
-            for cycle in range(3):
-                logger.debug(
-                    f"Eject tips: actuation cycle {cycle + 1}/3"
-                )  # TODO: Parameterize the total number of eject cycles for testing
-                self._wait_output_pressure(
-                    449
-                )  # TODO: Change to Pressure Control Library max pressure. Will need slight modificiation of PGVA library
-                self.pressure_control.trigger_actuation_valve(10)
-                self.pressure_control.trigger_actuation_valve(1000)
-                self._wait_output_pressure(
-                    -449
-                )  # TODO: Change to Pressure Control Library min pressure. Will need slight modificiation of PGVA library
-                self.pressure_control.trigger_actuation_valve(10)
-                self.pressure_control.trigger_actuation_valve(2000)
-            self.pressure_control.set_output_pressure(0)
-            self.fluid_control_status.set_clear()
-            self._enable_xy_axes()
-            logger.info("EJECT TIPS COMPLETE")
-            return [self.fluid_control_status.get_status(), "Tips ejected successfully"]
-        except Exception as e:
-            logger.error(f"EJECT TIPS FAILED: {e}")
-            self.fluid_control_status.set_error()
-            self._enable_xy_axes()
-            return [self.fluid_control_status.get_status(), str(e)]
-
-    def _pickup_action(self, duration: float) -> None:
-        if self.is_static or self.mount_arm is None:
-            raise NotImplementedError(
-                "Axis not configured, fluid_control is configured to be static. Pass in the attachment axis to the constructor if this was done in error"
-            )
-        delta = 0.5  # mm — FestoAxis.current_position() returns mm
-        self.mount_arm.acknowledge_faults()  # TODO: We need a way to NOT dig this deep into internals of the edcon library
-        # self.mount_arm.disable_powerstage()
-        current_position = self.mount_arm.current_position()
-        logger.debug(f"_pickup_action: start position={current_position}, duration={duration}, delta={delta}")
-        repeat = True
-        count = 0
-        self._disable_xy_axes()
-        while repeat:
-            self.mount_arm.acknowledge_faults()
-            self.mount_arm.enable_powerstage()
-            self.mount_arm.jog_task(
-                True, False, duration=duration
-            )  # TODO: Passing all the way to jog_task defeats the purpose of the axis class and make the parameters passed / API confusing. Think of a way to fix this.
-            # self.mount_arm.position_task(position=5000, velocity=duration, absolute=False, nonblocking=False)
-            # self.mount_arm.jog_task(True, False, duration=0.5)
-            new_position = self.mount_arm.current_position()
-            movement = abs(new_position - current_position)
-            logger.debug(f"_pickup_action: new_position={new_position}, movement={movement}, stall_count={count}")
-            if movement <= delta:
-                count += 1
-                current_position = new_position
-            else:
-                current_position = new_position
-            if count > 1:  # TODO: Parameterize this for testing
-                logger.debug("_pickup_action: stall detected — tip engagement complete")
-                repeat = False
-        self._enable_xy_axes()
-        self.mount_arm.acknowledge_faults()
-
-    def pickup_tips(self, duration: float) -> list[int | str]:
-        """Pick up tips with the fluid_control."""
-        logger.info(f"PICKUP TIPS START: duration={duration}")
-        if self.is_static:
-            raise NotImplementedError(
-                "Axis not configured, fluid_control is configured to be static. Pass in the attachment axis to the constructor if this was done in error"
-            )
-        self.fluid_control_status.set_busy()
-        try:
-            self._pickup_action(duration=duration)
-            self.fluid_control_status.code = 0
-            logger.info("PICKUP TIPS COMPLETE")
-            return [self.fluid_control_status.get_status(), "Tips picked up successfully"]
-        except Exception as e:
-            logger.error(f"PICKUP TIPS FAILED: {e}")
-            self.fluid_control_status.set_error()
-            return [self.fluid_control_status.get_status(), str(e)]
-
     # TODO change to dictionary input
     # TODO change error handling with more clarification of error
     # TODO CHANGE PROTO TO HANDLE MIX WITH CYCLES
@@ -642,13 +512,7 @@ class PressureOverLiquidControl(FluidControl):
 
     def __repr__(self) -> str:
         """Return representation of control class."""
-        return (
-            f"{type(self).__name__}("
-            f"component_type={self.component_type!r}, "
-            f"channels={self.active_channels}, "
-            f"liquid_classes={list(self.get_liquid_classes())}, "
-            f"static={self.is_static})"
-        )
+        return f"{type(self).__name__}: component_type={self.component_type!r}, component_id={self.component_id} "
 
     def __len__(self) -> int:
         """Return the number of fluid channels."""
@@ -672,7 +536,7 @@ class PressureOverLiquidControl(FluidControl):
         """Return hash derived from component type and config."""
         return hash((self.component_type, json.dumps(self.config, sort_keys=True)))
 
-    def __enter__(self) -> "PressureOverLiquidControl":
+    def __enter__(self):
         """Entry for context manager."""
         return self
 

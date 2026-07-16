@@ -1,6 +1,6 @@
 [project]
 name = "festo-dev-fluid-control"
-version = "0.3.1"
+version = "0.3.3"
 description = "Reference implementation of controls for pressure-over-liquid-based fluid controls from Festo"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -16,9 +16,18 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "festo-pgva>=0.2.1",
-    "festo-vaem>=0.2.1",
+    "festo-vaem>=0.3",
     "festo-dev-applied-motion>=0.3.3",
 ]
+
+[project.optional-dependencies]
+cli = [
+    "prompt-toolkit>=3.0.52",
+    "rich>=14.0.0",
+]
+
+[project.scripts]
+fluid-control-cli = "fluid_control.cli.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Festo-se/festo-dev-fluid-control/"
@@ -35,7 +44,9 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.14.0",
     "ruff>=0.15.11",
-    "ty>=0.0.34"
+    "ty>=0.0.34",
+    "prompt-toolkit>=3.0.52",
+    "rich>=14.0.0",
 ]
 docs = [
     "mkdocs>=1.6.1,<2",

@@ -67,7 +67,7 @@
                         "uuid": 1,
                         "interface": {
                             "type": "tcp/ip",
-                            "ip": "192.168.10.102",
+                            "ip": "192.168.0.50",
                             "port": 502
                         }
                     },
@@ -105,7 +105,7 @@
                         "uuid": 2,
                         "interface": {
                             "type": "tcp/ip",
-                            "ip": "192.168.10.27",
+                            "ip": "192.168.10.31",
                             "port": 502
                         }
                     }
@@ -213,7 +213,7 @@
                         "uuid": 1,
                         "interface": {
                             "type": "tcp/ip",
-                            "ip": "192.168.10.102",
+                            "ip": "192.168.0.30",
                             "port": 502
                         }
                     },
@@ -253,7 +253,7 @@
                         "uuid": 2,
                         "interface": {
                             "type": "tcp/ip",
-                            "ip": "192.168.10.27",
+                            "ip": "192.168.0.31",
                             "port": 502
                         }
                     }
@@ -956,7 +956,7 @@
                 "backend": "fposbapi",
                 "interface": {
                     "type": "tcp/ip",
-                    "ip": "192.168.10.25",
+                    "ip": "192.168.0.50",
                     "port": 1234
                 },
                 "axes": {
@@ -1157,6 +1157,7 @@
                 },
                 "component_class": "plc",
                 "control_mode": "python",
+                "_comment_1": "Todo: The following is wrong",
                 "control_package": "festo-cpx-io",
                 "control_library": "cpx_io",
                 "control_system": "cpx_system",
@@ -1167,7 +1168,7 @@
                 "controller": {
                     "eep": "CpxEEp"
                 },
-                "ip": "192.168.0.2",
+                "ip": "192.168.0.50",
                 "modules": {
                     "eep": "CpxEEp",
                     "e16di": "CpxE16Di",

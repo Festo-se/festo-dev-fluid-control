@@ -325,7 +325,7 @@ wheels = [
 
 [[package]]
 name = "festo-dev-applied-motion"
-version = "0.3.4"
+version = "0.3.8"
 source = { editable = "../festo-dev-applied-motion" }
 dependencies = [
     { name = "festo-edcon" },
@@ -334,10 +334,10 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "festo-edcon", specifier = ">=0.15.0" },
-    { name = "prompt-toolkit", marker = "extra == 'teach-in'", specifier = ">=3.0.52" },
-    { name = "rich", marker = "extra == 'teach-in'", specifier = ">=14.2.0" },
+    { name = "prompt-toolkit", marker = "extra == 'cli'", specifier = ">=3.0.52" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.2.0" },
 ]
-provides-extras = ["teach-in"]
+provides-extras = ["cli"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -365,7 +365,7 @@ teach = [
 
 [[package]]
 name = "festo-dev-fluid-control"
-version = "0.3.1"
+version = "0.3.3"
 source = { editable = "." }
 dependencies = [
     { name = "festo-dev-applied-motion" },
@@ -373,11 +373,19 @@ dependencies = [
     { name = "festo-vaem" },
 ]
 
+[package.optional-dependencies]
+cli = [
+    { name = "prompt-toolkit" },
+    { name = "rich" },
+]
+
 [package.dev-dependencies]
 dev = [
+    { name = "prompt-toolkit" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "rich" },
     { name = "ruff" },
     { name = "ty" },
 ]
@@ -396,14 +404,19 @@ docs = [
 requires-dist = [
     { name = "festo-dev-applied-motion", editable = "../festo-dev-applied-motion" },
     { name = "festo-pgva", specifier = ">=0.2.1" },
-    { name = "festo-vaem", specifier = ">=0.2.1" },
+    { name = "festo-vaem", specifier = ">=0.3" },
+    { name = "prompt-toolkit", marker = "extra == 'cli'", specifier = ">=3.0.52" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.0.0" },
 ]
+provides-extras = ["cli"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "prompt-toolkit", specifier = ">=3.0.52" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pytest-mock", specifier = ">=3.14.0" },
+    { name = "rich", specifier = ">=14.0.0" },
     { name = "ruff", specifier = ">=0.15.11" },
     { name = "ty", specifier = ">=0.0.34" },
 ]
@@ -444,14 +457,15 @@ wheels = [
 
 [[package]]
 name = "festo-vaem"
-version = "0.2.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pymodbus" },
+    { name = "pyserial" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/33/d7/50b3c8572c64e327ac76ddb755eecaa175dcfaf80d4517a3fa9969eb55b7/festo_vaem-0.2.1.tar.gz", hash = "sha256:536145f3ec4a81bca2147a40353ebab4dde0823a18ae319f25ac4e9fc8dec7f2", size = 10514, upload-time = "2026-04-17T18:15:59.651Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/0e/9ec90b709dec3b740b9286d9c55cb92566a4e98c74f8a9a23f7a095a5040/festo_vaem-0.3.0.tar.gz", hash = "sha256:ad12e0772019ed1666d7dc74f48629133ae388c5440af70127f4f51fe7c7f2a3", size = 14605, upload-time = "2026-07-06T16:24:00.983Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ea/5b/2c45e3cd625eb2d3d7ab9619ccc801db88416852a2a3e3262f2cbe8917d2/festo_vaem-0.2.1-py3-none-any.whl", hash = "sha256:253f89e203449b00d7a700500706e657cdc24a9aeb79c74fcf2cb5866a500ccc", size = 12881, upload-time = "2026-04-17T18:15:58.377Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/6b/5ba85c16e900cec00417a5cfe13c1850d955f2b9ac58b0745c3067309b5e/festo_vaem-0.3.0-py3-none-any.whl", hash = "sha256:909138229d4769164585c08677dc1cba9551f6b4989b9fcaa44e24b57f93d975", size = 16837, upload-time = "2026-07-06T16:23:59.712Z" },
 ]
 
 [[package]]
@@ -853,6 +867,18 @@ wheels = [
 ]
 
 [[package]]
+name = "prompt-toolkit"
+version = "3.0.52"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wcwidth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a1/96/06e01a7b38dce6fe1db213e061a4602dd6032a8a97ef6c1a862537732421/prompt_toolkit-3.0.52.tar.gz", hash = "sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855", size = 434198, upload-time = "2025-08-27T15:24:02.057Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/03/0d3ce49e2505ae70cf43bc5bb3033955d2fc9f932163e84dc0779cc47f48/prompt_toolkit-3.0.52-py3-none-any.whl", hash = "sha256:9aac639a3bbd33284347de5ad8d68ecc044b91a762dc39b7c21095fcd6a19955", size = 391431, upload-time = "2025-08-27T15:23:59.498Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -881,6 +907,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2e/3b/599f812b03147f1eee357f0eb62f1753ff5bfc099da9aced63ecf6f32560/pymodbus-3.11.3.tar.gz", hash = "sha256:10c2902838ad5a233baefb64b1c1fb064fa762b22b221bf35191bf39f01449a8", size = 162906, upload-time = "2025-09-25T13:06:51.729Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/48/be/65c44a34dd9ac38104819a6182ac9df55dd10b9505ef1dc2ea1d46cb2cbb/pymodbus-3.11.3-py3-none-any.whl", hash = "sha256:fcb84f3389325fc37a644229abf1f31f6704a86265ff3f5ad6ec550c2f243aa1", size = 164377, upload-time = "2025-09-25T13:06:48.587Z" },
+]
+
+[[package]]
+name = "pyserial"
+version = "3.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb", size = 159125, upload-time = "2020-11-23T03:59:15.045Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0", size = 90585, upload-time = "2020-11-23T03:59:13.41Z" },
 ]
 
 [[package]]
@@ -1216,4 +1251,13 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/79/3e/c0bdc27cf06f4e47680bd5803a07cb3dfd17de84cde92dd217dcb9e05253/wcmatch-10.1.tar.gz", hash = "sha256:f11f94208c8c8484a16f4f48638a85d771d9513f4ab3f37595978801cb9465af", size = 117421, upload-time = "2025-06-22T19:14:02.49Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/d8/0d1d2e9d3fabcf5d6840362adcf05f8cf3cd06a73358140c3a97189238ae/wcmatch-10.1-py3-none-any.whl", hash = "sha256:5848ace7dbb0476e5e55ab63c6bbd529745089343427caa5537f230cc01beb8a", size = 39854, upload-time = "2025-06-22T19:14:00.978Z" },
+]
+
+[[package]]
+name = "wcwidth"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/ee/afaf0f85a9a18fe47a67f1e4422ed6cf1fe642f0ae0a2f81166231303c52/wcwidth-0.7.0.tar.gz", hash = "sha256:90e3a7ea092341c44b99562e75d09e4d5160fe7a3974c6fb842a101a95e7eed0", size = 182132, upload-time = "2026-05-02T16:04:12.653Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/52/e465037f5375f43533d1a80b6923955201596a99142ed524d77b571a1418/wcwidth-0.7.0-py3-none-any.whl", hash = "sha256:5d69154c429a82910e241c738cd0e2976fac8a2dd47a1a805f4afed1c0f136f2", size = 110825, upload-time = "2026-05-02T16:04:11.033Z" },
 ]

@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Festo SE & Co. KG
 
 """
-Festo Dispenser module containing Dispenser class and support functions.
+Festo Aspirator module containing Aspirator class and support functions.
 
-Configurable class for dispensing applications.
+Configurable class for aspirating applications.
 For now, this class assumes use of a Festo VAEM and PGVA for valve and
 pressure control respectively. Optional hooks in development for proporional pressure regulation
 using a VEAB connected to a Festo PLC and communicated with via socket using an API
 in the style of the Festo Easy Postioning API and integrated via support in the
-festo-applied-motion library. This will be separated in
+festo-applied-motion library.
 """
 
 import logging
@@ -19,11 +19,11 @@ from applied_motion import Axis
 logger = logging.getLogger(__name__)
 
 
-class Dispenser(PressureOverLiquidControl):
+class Aspirator(PressureOverLiquidControl):
     """
-    Dispenser class for modular dispensing applications.
+    Aspirator class for modular aspirating applications.
 
-    Driver for a Festo dispenser, e.g. VTOI, VTOE, VTOF.
+    Driver for a Festo aspirator, e.g. VTOI, VTOE, VTOF.
     Currently, there are hard-coded dependencies on the festo-pgva and festo-vaem drivers
     for their respective hardware modules.
     """
@@ -31,20 +31,20 @@ class Dispenser(PressureOverLiquidControl):
     def __init__(
         self,
         config: dict,
-        component_id: str = "dispenser_1",
+        component_id: str = "aspirator_1",
         mount_arm: Axis | None = None,
         disable_axes: tuple[Axis, ...] = (),
         pressure_control=None,
         valve_control=None,
     ):
         """
-        Initialize Dispenser class.
+        Initialize Aspirator class.
 
         Args:
-            config (dict): Dispenser configuration.
-            component_id (str): Key of this dispenser instance inside
-                ``config["components"]``. Defaults to ``"dispenser_1"``.
-            mount_arm (Axis | None, optional): Mobile arm the dispenser is mounted on, if one exists. Defaults to None.
+            config (dict): Aspirator configuration.
+            component_id (str): Key of this Aspirator instance inside
+                ``config["components"]``. Defaults to ``"aspirator_1"``.
+            mount_arm (Axis | None, optional): Mobile arm the aspirator is mounted on, if one exists. Defaults to None.
             disable_axes (tuple, optional): Axes to disable when doing specified actions. Defaults to ().
             pressure_control: Instance of already-instantiated pressure control device.
                 Opinionated choice that this is a PGVA with some support for
@@ -56,7 +56,7 @@ class Dispenser(PressureOverLiquidControl):
         """
         super().__init__(
             config,
-            component_type="dispenser",
+            component_type="aspirator",  # TODO: Implement this as an option
             component_id=component_id,
             mount_arm=mount_arm,
             disable_axes=disable_axes,
@@ -64,7 +64,7 @@ class Dispenser(PressureOverLiquidControl):
             valve_control=valve_control,
         )
 
-    def dispense(self, dispense_dict: dict) -> None:
+    def aspirate(self, dispense_dict: dict) -> None:
         """
         Dispense liquid across one or more valve controller channels.
 
@@ -74,4 +74,4 @@ class Dispenser(PressureOverLiquidControl):
         """
         logger.info(f"DISPENSE START: {dispense_dict}")
         # TODO: Enable ability to set timing PER CLASS
-        self._handle_liquid(dispense_dict, process="dispense")
+        self._handle_liquid(dispense_dict, process="aspirate")
