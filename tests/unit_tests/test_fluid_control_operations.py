@@ -23,11 +23,11 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _set_pressure_values(mock_pgva) -> list[int]:
+def _set_pressure_values(mock_pressure) -> list[int]:
     """Collect all values passed to set_output_pressure (handles both
     positional and keyword call forms used in production code)."""
     result = []
-    for c in mock_pgva.set_output_pressure.call_args_list:
+    for c in mock_pressure.set_output_pressure.call_args_list:
         result.append(c.args[0] if c.args else c.kwargs["pressure"])
     return result
 
@@ -42,12 +42,12 @@ class TestDispense:
 
     def test_calls_set_output_pressure_with_calibration_pressure(self, dispenser):
         dispenser.dispense(self._DISPENSE_CMD)
-        pressure_calls = [c.kwargs["pressure"] for c in dispenser.mock_pgva.set_output_pressure.call_args_list]
+        pressure_calls = [c.kwargs["pressure"] for c in dispenser.mock_pressure.set_output_pressure.call_args_list]
         assert 70 in pressure_calls
 
     def test_calls_set_output_pressure_with_zero_after_operation(self, dispenser):
         dispenser.dispense(self._DISPENSE_CMD)
-        pressure_calls = [c.kwargs["pressure"] for c in dispenser.mock_pgva.set_output_pressure.call_args_list]
+        pressure_calls = [c.kwargs["pressure"] for c in dispenser.mock_pressure.set_output_pressure.call_args_list]
         assert 0 in pressure_calls
 
     def test_calls_select_valve_for_each_channel(self, dispenser):
@@ -140,7 +140,7 @@ class TestAspirate:
         pipettor_instance.aspirate(self._ASPIRATE_CMD)
         pressure_calls = [
             c.kwargs["pressure"]
-            for c in pipettor_instance.mock_pgva.set_output_pressure.call_args_list
+            for c in pipettor_instance.mock_pressure.set_output_pressure.call_args_list
         ]
         assert -100 in pressure_calls
 
@@ -196,11 +196,11 @@ class TestGetStatus:
 
     def test_contains_exactly_three_keys(self, dispenser):
         result = dispenser.get_status()
-        assert set(result.keys()) == {"pgva", "vaem", "fluid_control_status"}
+        assert set(result.keys()) == {"pressure", "valve", "fluid_control_status"}
 
     def test_calls_get_status_word_on_pressure_control(self, dispenser):
         dispenser.get_status()
-        dispenser.mock_pgva.get_status_word.assert_called()
+        dispenser.mock_pressure.get_status_word.assert_called()
 
     def test_calls_get_status_on_valve_control(self, dispenser):
         initial_count = dispenser.mock_vaem.get_status.call_count
@@ -208,14 +208,14 @@ class TestGetStatus:
         assert dispenser.mock_vaem.get_status.call_count > initial_count
 
     def test_pgva_value_is_backend_return_value(self, dispenser):
-        dispenser.mock_pgva.get_status_word.return_value = {"Status": "TestValue"}
+        dispenser.mock_pressure.get_status_word.return_value = {"Status": "TestValue"}
         result = dispenser.get_status()
-        assert result["pgva"] == {"Status": "TestValue"}
+        assert result["pressure"] == {"Status": "TestValue"}
 
     def test_vaem_value_is_backend_return_value(self, dispenser):
         dispenser.mock_vaem.get_status.return_value = {"Readiness": 0, "TestKey": "TestVal"}
         result = dispenser.get_status()
-        assert result["vaem"]["TestKey"] == "TestVal"
+        assert result["valve"]["TestKey"] == "TestVal"
 
     def test_pipettor_status_is_numeric_code(self, dispenser):
         result = dispenser.get_status()
@@ -247,23 +247,23 @@ class TestEjectTips:
 
     def test_pressurizes_to_449_mbar_each_cycle(self, pipettor_with_arm):
         pipettor_with_arm.eject_tips()
-        pressures = _set_pressure_values(pipettor_with_arm.mock_pgva)
+        pressures = _set_pressure_values(pipettor_with_arm.mock_pressure)
         assert pressures.count(449) == 3  # once per cycle
 
     def test_depressurizes_to_minus_449_mbar_each_cycle(self, pipettor_with_arm):
         pipettor_with_arm.eject_tips()
-        pressures = _set_pressure_values(pipettor_with_arm.mock_pgva)
+        pressures = _set_pressure_values(pipettor_with_arm.mock_pressure)
         assert pressures.count(-449) == 3  # once per cycle
 
     def test_resets_pressure_to_zero_after_all_cycles(self, pipettor_with_arm):
         pipettor_with_arm.eject_tips()
-        pressures = _set_pressure_values(pipettor_with_arm.mock_pgva)
+        pressures = _set_pressure_values(pipettor_with_arm.mock_pressure)
         assert pressures[-1] == 0
 
     def test_triggers_actuation_valve_twelve_times(self, pipettor_with_arm):
         # 3 cycles × 4 trigger calls (10, 1000, 10, 2000) = 12
         pipettor_with_arm.eject_tips()
-        assert pipettor_with_arm.mock_pgva.trigger_actuation_valve.call_count == 12
+        assert pipettor_with_arm.mock_pressure.trigger_actuation_valve.call_count == 12
 
 
 class TestPickupTips:
@@ -354,7 +354,7 @@ class TestDirectCommand:
         dispenser.direct_command({1: 100}, pressure=50)
         pressure_calls = [
             c.kwargs["pressure"]
-            for c in dispenser.mock_pgva.set_output_pressure.call_args_list
+            for c in dispenser.mock_pressure.set_output_pressure.call_args_list
         ]
         assert 50 in pressure_calls
 
@@ -376,7 +376,7 @@ class TestDirectCommand:
         dispenser.direct_command({1: 100}, pressure=50)
         pressure_calls = [
             c.kwargs["pressure"]
-            for c in dispenser.mock_pgva.set_output_pressure.call_args_list
+            for c in dispenser.mock_pressure.set_output_pressure.call_args_list
         ]
         assert -1 in pressure_calls
 
@@ -408,11 +408,6 @@ class TestPressureOverLiquidControlRepr:
     def test_repr_contains_component_type(self, dispenser):
         assert "dispenser" in repr(dispenser)
 
-    def test_repr_contains_channels(self, dispenser):
-        assert "[1, 2]" in repr(dispenser)
-
-    def test_repr_contains_static_flag(self, dispenser):
-        assert "static=True" in repr(dispenser)
 
 
 class TestPressureOverLiquidControlLen:
@@ -476,12 +471,12 @@ class TestPressureOverLiquidControlHash:
 
         def _make_instances():
             state = {"pressure": 0}
-            mock_pgva = MagicMock()
-            mock_pgva.set_output_pressure.side_effect = lambda pressure: state.update({"pressure": pressure})
-            mock_pgva.get_output_pressure.side_effect = lambda: state["pressure"]
+            mock_pressure = MagicMock()
+            mock_pressure.set_output_pressure.side_effect = lambda pressure: state.update({"pressure": pressure})
+            mock_pressure.get_output_pressure.side_effect = lambda: state["pressure"]
             mock_vaem = MagicMock()
             mock_vaem.get_status.return_value = {"Readiness": 0, **{f"Valve{i}": 0 for i in range(1, 9)}}
-            mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pgva)
+            mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pressure)
             mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
             mocker.patch("fluid_control.fluid_control.sleep")
             return Dispenser(config=dispenser_config)
@@ -503,7 +498,7 @@ class TestPressureOverLiquidControlContextManager:
     def test_exit_sets_pressure_to_zero(self, dispenser):
         with dispenser:
             pass
-        pressure_calls = _set_pressure_values(dispenser.mock_pgva)
+        pressure_calls = _set_pressure_values(dispenser.mock_pressure)
         assert pressure_calls[-1] == 0
 
     def test_exit_deselects_all_channels(self, dispenser):

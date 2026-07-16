@@ -11,7 +11,7 @@ eight_channel_pipettor_config
 
 dispenser
     A ``Dispenser`` instance whose PGVA and VAEM backends are replaced
-    by ``MagicMock`` objects.  Exposes ``.mock_pgva`` and ``.mock_vaem``
+    by ``MagicMock`` objects.  Exposes ``.mock_pressure`` and ``.mock_vaem``
     for per-test assertion.  ``sleep`` is also patched so valve-timing
     waits are instantaneous.
 
@@ -130,7 +130,7 @@ def eight_channel_pipettor_config() -> dict:
 
 
 def _make_pressure_mock() -> tuple[MagicMock, dict]:
-    """Return a (mock_pgva, state) pair.
+    """Return a (mock_pressure, state) pair.
 
     ``set_output_pressure`` and ``get_output_pressure`` are wired through a
     shared state dict so that ``_wait_output_pressure``'s polling loop
@@ -199,15 +199,15 @@ TIP_RACK_POSITIONS: list[float] = [0.0, 5.0, 10.0, 10.3, 10.5]
 @pytest.fixture()
 def dispenser(mocker, dispenser_config):
     """Dispenser with fully mocked PGVA + VAEM + sleep."""
-    mock_pgva, _state = _make_pressure_mock()
+    mock_pressure, _state = _make_pressure_mock()
     mock_vaem = _make_valve_mock()
 
-    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pgva)
+    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pressure)
     mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
     mocker.patch("fluid_control.fluid_control.sleep")
 
     instance = Dispenser(config=dispenser_config)
-    instance.mock_pgva = mock_pgva
+    instance.mock_pressure = mock_pressure
     instance.mock_vaem = mock_vaem
     return instance
 
@@ -215,15 +215,15 @@ def dispenser(mocker, dispenser_config):
 @pytest.fixture()
 def pipettor_instance(mocker, eight_channel_pipettor_config):
     """Pipettor with fully mocked PGVA + VAEM + sleep."""
-    mock_pgva, _state = _make_pressure_mock()
+    mock_pressure, _state = _make_pressure_mock()
     mock_vaem = _make_valve_mock()
 
-    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pgva)
+    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pressure)
     mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
     mocker.patch("fluid_control.fluid_control.sleep")
 
     instance = Pipettor(config=eight_channel_pipettor_config)
-    instance.mock_pgva = mock_pgva
+    instance.mock_pressure = mock_pressure
     instance.mock_vaem = mock_vaem
     return instance
 
@@ -236,12 +236,12 @@ def pipettor_with_arm(mocker, eight_channel_pipettor_config):
     so that ``_pickup_action`` runs its full stall-detection loop and exits
     cleanly without real hardware.
 
-    Exposes ``.mock_pgva``, ``.mock_vaem``, and ``.mock_arm`` for assertions.
+    Exposes ``.mock_pressure``, ``.mock_vaem``, and ``.mock_arm`` for assertions.
     """
-    mock_pgva, _state = _make_pressure_mock()
+    mock_pressure, _state = _make_pressure_mock()
     mock_vaem = _make_valve_mock()
 
-    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pgva)
+    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pressure)
     mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
     mocker.patch("fluid_control.fluid_control.sleep")
 
@@ -249,7 +249,7 @@ def pipettor_with_arm(mocker, eight_channel_pipettor_config):
     mock_arm.current_position.side_effect = list(TIP_RACK_POSITIONS)
 
     instance = Pipettor(config=eight_channel_pipettor_config, mount_arm=mock_arm)
-    instance.mock_pgva = mock_pgva
+    instance.mock_pressure = mock_pressure
     instance.mock_vaem = mock_vaem
     instance.mock_arm = mock_arm
     return instance
@@ -308,21 +308,21 @@ def test_config() -> dict:
 def test_dispenser(mocker, test_config):
     """Dispenser built from the real test-config.json, PGVA + VAEM mocked.
 
-    Exposes ``.mock_pgva`` and ``.mock_vaem`` for per-test assertion.
+    Exposes ``.mock_pressure`` and ``.mock_vaem`` for per-test assertion.
     The test dispenser component has:
       - 2 channels (terminals 1 and 2)
       - liquid classes: ``water``, ``ethylene-glycol10%``, ``third-liquid-class``
       - only ``dispense`` processes (no aspirate calibration for this component)
     """
-    mock_pgva, _state = _make_pressure_mock()
+    mock_pressure, _state = _make_pressure_mock()
     mock_vaem = _make_valve_mock()
 
-    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pgva)
+    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pressure)
     mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
     mocker.patch("fluid_control.fluid_control.sleep")
 
     instance = Dispenser(config=test_config["component_config"])
-    instance.mock_pgva = mock_pgva
+    instance.mock_pressure = mock_pressure
     instance.mock_vaem = mock_vaem
     return instance
 
@@ -331,21 +331,21 @@ def test_dispenser(mocker, test_config):
 def test_pipettor(mocker, test_config):
     """Pipettor built from the real test-config.json, PGVA + VAEM mocked.
 
-    Exposes ``.mock_pgva`` and ``.mock_vaem`` for per-test assertion.
+    Exposes ``.mock_pressure`` and ``.mock_vaem`` for per-test assertion.
     The test pipettor component has:
       - 8 channels (terminals 1–8, calibration keys ``"1"``–``"8"``)
       - liquid classes: ``water``, ``ethylene-glycol10%``
       - both ``aspirate`` and ``dispense`` processes
     """
-    mock_pgva, _state = _make_pressure_mock()
+    mock_pressure, _state = _make_pressure_mock()
     mock_vaem = _make_valve_mock()
 
-    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pgva)
+    mocker.patch("fluid_control.fluid_control.PGVA", return_value=mock_pressure)
     mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
     mocker.patch("fluid_control.fluid_control.sleep")
 
     instance = Pipettor(config=test_config["component_config"])
-    instance.mock_pgva = mock_pgva
+    instance.mock_pressure = mock_pressure
     instance.mock_vaem = mock_vaem
     return instance
 
@@ -374,6 +374,28 @@ def _require_reachable(hosts: list[tuple[str, int]]) -> None:
         pytest.skip(f"Hardware unreachable: {', '.join(unreachable)}")
 
 
+def _close_device(instance) -> None:
+    """Close a device's Modbus TCP connections during fixture teardown.
+
+    Doing this explicitly (rather than relying on interpreter-shutdown
+    garbage collection) avoids the underlying VAEM/PGVA libraries logging
+    to pytest's already-closed capture streams, which would otherwise emit
+    a spurious ``ValueError: I/O operation on closed file`` at the end of
+    the run.
+
+    The public ``VAEM``/``PGVA`` wrappers keep the live Modbus client on a
+    private ``_backend`` attribute, so teardown reaches through it.
+    """
+    valve_backend = getattr(getattr(instance, "valve_control", None), "_backend", None)
+    if valve_backend is not None and hasattr(valve_backend, "close_client"):
+        valve_backend.close_client()
+
+    pressure_backend = getattr(getattr(instance, "pressure_control", None), "_backend", None)
+    client = getattr(pressure_backend, "client", None)
+    if client is not None and hasattr(client, "close"):
+        client.close()
+
+
 @pytest.fixture(scope="module")
 def test_hardware_dispenser(test_config):
     """Real Dispenser connected to the test hardware (PGVA 192.168.10.102, VAEM 192.168.10.27).
@@ -389,12 +411,14 @@ def test_hardware_dispenser(test_config):
         (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
         (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
     ])
-    return Dispenser(config=test_config["component_config"])
+    instance = Dispenser(config=test_config["component_config"])
+    yield instance
+    _close_device(instance)
 
 
 @pytest.fixture(scope="module")
 def test_hardware_pipettor(test_config):
-    """Real Pipettor connected to the test hardware (PGVA 192.168.0.29, VAEM 192.168.0.1).
+    """Real Pipettor connected to the test hardware (PGVA 192.168.0.23, VAEM 192.168.0.27).
 
     Module-scoped so the TCP connections are opened once per test module.
     Skipped automatically if either device is unreachable.
@@ -407,4 +431,6 @@ def test_hardware_pipettor(test_config):
         (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
         (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
     ])
-    return Pipettor(config=test_config["component_config"])
+    instance = Pipettor(config=test_config["component_config"])
+    yield instance
+    _close_device(instance)

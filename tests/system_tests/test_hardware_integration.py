@@ -2,7 +2,7 @@
 
 Uses the configuration from ``tests/fixtures/test-config.json``:
     dispenser  — PGVA 192.168.10.102, VAEM 192.168.10.27, 2 channels
-    pipettor   — PGVA 192.168.0.29,   VAEM 192.168.0.1,  8 channels
+    pipettor   — PGVA 192.168.0.23,   VAEM 192.168.0.27,  8 channels
 
 These tests are skipped automatically unless ``FESTO_HARDWARE_TESTS=1`` is
 set in the environment.  Run with::
@@ -26,28 +26,28 @@ pytestmark = pytest.mark.hardware
 # ---------------------------------------------------------------------------
 
 
-class TestTestHardwareDispenserConnectivity:
+class TestHardwareDispenserConnectivity:
     def test_instantiates_as_dispenser(self, test_hardware_dispenser):
         assert isinstance(test_hardware_dispenser, Dispenser)
 
     def test_get_status_returns_expected_keys(self, test_hardware_dispenser):
         status = test_hardware_dispenser.get_status()
-        assert set(status.keys()) == {"pgva", "vaem", "fluid_control_status"}
+        assert set(status.keys()) == {"pressure", "vaem", "fluid_control_status"}
 
     def test_get_status_pgva_value_is_dict(self, test_hardware_dispenser):
         status = test_hardware_dispenser.get_status()
-        assert isinstance(status["pgva"], dict)
+        assert isinstance(status["pressure"], dict)
 
     def test_get_status_vaem_value_is_dict(self, test_hardware_dispenser):
         status = test_hardware_dispenser.get_status()
         assert isinstance(status["vaem"], dict)
 
-    def test_pipettor_status_clear_after_init(self, test_hardware_dispenser):
+    def test_dispenser_status_clear_after_init(self, test_hardware_dispenser):
         status = test_hardware_dispenser.get_status()
         assert status["fluid_control_status"] == 0
 
 
-class TestTestHardwareDispenserOperations:
+class TestHardwareDispenserOperations:
     def test_dispense_water_channel1_does_not_raise(self, test_hardware_dispenser):
         test_hardware_dispenser.dispense({1: {"volume": 50, "liquid_class": "water"}})
 
@@ -79,20 +79,20 @@ class TestTestHardwareDispenserOperations:
 # ---------------------------------------------------------------------------
 
 
-class TestTestHardwarePipettorConnectivity:
+class TestHardwarePipettorConnectivity:
     def test_instantiates_as_pipettor(self, test_hardware_pipettor):
         assert isinstance(test_hardware_pipettor, Pipettor)
 
     def test_get_status_returns_expected_keys(self, test_hardware_pipettor):
         status = test_hardware_pipettor.get_status()
-        assert set(status.keys()) == {"pgva", "vaem", "fluid_control_status"}
+        assert set(status.keys()) == {"pressure", "valve", "fluid_control_status"}
 
     def test_pipettor_status_clear_after_init(self, test_hardware_pipettor):
         status = test_hardware_pipettor.get_status()
         assert status["fluid_control_status"] == 0
 
 
-class TestTestHardwarePipettorOperations:
+class TestHardwarePipettorOperations:
     def test_dispense_water_channel1_does_not_raise(self, test_hardware_pipettor):
         test_hardware_pipettor.dispense({1: {"volume": 50, "liquid_class": "water"}})
 

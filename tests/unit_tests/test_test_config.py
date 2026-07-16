@@ -161,18 +161,18 @@ class TestTestDispenserOperations:
 
     @pytest.mark.parametrize("liquid_class", TEST_DISPENSER_LIQUID_CLASSES)
     def test_dispense_uses_70mbar_pressure(self, test_dispenser, liquid_class):
-        test_dispenser.mock_pgva.set_output_pressure.reset_mock()
-        test_dispenser.mock_pgva.set_output_pressure.side_effect = (
-            lambda pressure: test_dispenser.mock_pgva.get_output_pressure.__class__
+        test_dispenser.mock_pressure.set_output_pressure.reset_mock()
+        test_dispenser.mock_pressure.set_output_pressure.side_effect = (
+            lambda pressure: test_dispenser.mock_pressure.get_output_pressure.__class__
         )
         # Re-wire the pressure tracking side_effect after the reset
         state = {"p": 0}
-        test_dispenser.mock_pgva.set_output_pressure.side_effect = lambda pressure: state.update({"p": pressure})
-        test_dispenser.mock_pgva.get_output_pressure.side_effect = lambda: state["p"]
+        test_dispenser.mock_pressure.set_output_pressure.side_effect = lambda pressure: state.update({"p": pressure})
+        test_dispenser.mock_pressure.get_output_pressure.side_effect = lambda: state["p"]
 
         test_dispenser.dispense({1: {"volume": 100, "liquid_class": liquid_class}})
 
-        pressures_used = [c.kwargs["pressure"] for c in test_dispenser.mock_pgva.set_output_pressure.call_args_list]
+        pressures_used = [c.kwargs["pressure"] for c in test_dispenser.mock_pressure.set_output_pressure.call_args_list]
         assert 70 in pressures_used
 
     def test_dispense_both_channels_simultaneously(self, test_dispenser):
@@ -211,10 +211,10 @@ class TestTestPipettorInit:
         assert test_pipettor.active_valve_count == 8
 
     def test_pgva_ip_from_config(self, test_pipettor):
-        assert test_pipettor.pressure_control_config.ip == "192.168.0.29"
+        assert test_pipettor.pressure_control_config.ip == "192.168.0.23"
 
     def test_vaem_ip_from_config(self, test_pipettor):
-        assert test_pipettor.valve_control_config.ip == "192.168.0.1"
+        assert test_pipettor.valve_control_config.ip == "192.168.0.27"
 
 
 # ---------------------------------------------------------------------------
@@ -289,26 +289,26 @@ class TestTestPipettorOperations:
 
     def test_dispense_ethylene_glycol_uses_correct_pressure(self, test_pipettor):
         state = {"p": 0}
-        test_pipettor.mock_pgva.set_output_pressure.side_effect = lambda pressure: state.update({"p": pressure})
-        test_pipettor.mock_pgva.get_output_pressure.side_effect = lambda: state["p"]
+        test_pipettor.mock_pressure.set_output_pressure.side_effect = lambda pressure: state.update({"p": pressure})
+        test_pipettor.mock_pressure.get_output_pressure.side_effect = lambda: state["p"]
 
         test_pipettor.dispense({1: {"volume": 100, "liquid_class": "ethylene-glycol10%"}})
 
         pressures_used = [
             c.kwargs["pressure"]
-            for c in test_pipettor.mock_pgva.set_output_pressure.call_args_list
+            for c in test_pipettor.mock_pressure.set_output_pressure.call_args_list
         ]
         assert 70 in pressures_used
 
     def test_aspirate_ethylene_glycol_uses_correct_pressure(self, test_pipettor):
         state = {"p": 0}
-        test_pipettor.mock_pgva.set_output_pressure.side_effect = lambda pressure: state.update({"p": pressure})
-        test_pipettor.mock_pgva.get_output_pressure.side_effect = lambda: state["p"]
+        test_pipettor.mock_pressure.set_output_pressure.side_effect = lambda pressure: state.update({"p": pressure})
+        test_pipettor.mock_pressure.get_output_pressure.side_effect = lambda: state["p"]
 
         test_pipettor.aspirate({1: {"volume": 100, "liquid_class": "ethylene-glycol10%"}})
 
         pressures_used = [
             c.kwargs["pressure"]
-            for c in test_pipettor.mock_pgva.set_output_pressure.call_args_list
+            for c in test_pipettor.mock_pressure.set_output_pressure.call_args_list
         ]
         assert -100 in pressures_used
