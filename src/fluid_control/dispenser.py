@@ -28,6 +28,8 @@ class Dispenser(PressureOverLiquidControl):
     for their respective hardware modules.
     """
 
+    component_type: str = "dispenser"
+
     def __init__(
         self,
         config: dict,
@@ -56,7 +58,6 @@ class Dispenser(PressureOverLiquidControl):
         """
         super().__init__(
             config,
-            component_type="dispenser",
             component_id=component_id,
             mount_arm=mount_arm,
             disable_axes=disable_axes,

@@ -28,6 +28,8 @@ class Aspirator(PressureOverLiquidControl):
     for their respective hardware modules.
     """
 
+    component_type: str = "aspirator"
+
     def __init__(
         self,
         config: dict,
@@ -45,7 +47,8 @@ class Aspirator(PressureOverLiquidControl):
             component_id (str): Key of this Aspirator instance inside
                 ``config["components"]``. Defaults to ``"aspirator_1"``.
             mount_arm (Axis | None, optional): Mobile arm the aspirator is mounted on, if one exists. Defaults to None.
-            disable_axes (tuple, optional): Axes to disable when doing specified actions. Defaults to ().
+            disable_axes (tuple, optional): Tuple of Axis objects to disable when doing specified actions. Defaults to ().
+                NOTE: Some physical systems do not enable this because the gantry is operated by coordinated motor action.
             pressure_control: Instance of already-instantiated pressure control device.
                 Opinionated choice that this is a PGVA with some support for
                 PLC-controlled VEAB at present.
@@ -56,7 +59,6 @@ class Aspirator(PressureOverLiquidControl):
         """
         super().__init__(
             config,
-            component_type="aspirator",  # TODO: Implement this as an option
             component_id=component_id,
             mount_arm=mount_arm,
             disable_axes=disable_axes,
@@ -64,14 +66,14 @@ class Aspirator(PressureOverLiquidControl):
             valve_control=valve_control,
         )
 
-    def aspirate(self, dispense_dict: dict) -> None:
+    def aspirate(self, aspirate_dict: dict) -> None:
         """
-        Dispense liquid across one or more valve controller channels.
+        Aspirate liquid across one or more valve controller channels.
 
         Args:
-            dispense_dict (dict): Mapping of channel IDs to channel-operation parameters.
+            aspirate_dict (dict): Mapping of channel IDs to channel-operation parameters.
 
         """
-        logger.info(f"DISPENSE START: {dispense_dict}")
+        logger.info(f"ASPIRATE START: {aspirate_dict}")
         # TODO: Enable ability to set timing PER CLASS
-        self._handle_liquid(dispense_dict, process="aspirate")
+        self._handle_liquid(aspirate_dict, process="aspirate")

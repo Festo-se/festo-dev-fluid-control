@@ -7,6 +7,7 @@ Provides the base class hierarchy for all pipettor and dispenser fluid-handling
 operations, including pressure management, valve timing, tip pickup, and ejection.
 """
 
+from abc import ABC
 from collections.abc import Callable, Iterator, KeysView
 from time import sleep
 import json
@@ -27,10 +28,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# class FluidControl(ABC):  # noqa: B024
-#     """Marker base class for all fluid-control implementations."""
+class FluidControl(ABC):  # noqa: B024
+    """Marker base class for all fluid-control implementations."""
 
-#     pass
+    pass
 
 
 # class MassFlowControl(FluidControl):
@@ -39,15 +40,23 @@ logger = logging.getLogger(__name__)
 #     pass
 
 
-class PressureOverLiquidControl:
-    """Abstract Pressure Over Liquid Control."""
+class PressureOverLiquidControl(FluidControl):
+    """
+    Abstract Pressure Over Liquid Control.
 
+    Attributes:
+        component_type (str): Class identifier for this component
+            (e.g. ``"dispenser"`` or ``"pipettor"``). Used for logging.
+        is_static (bool): Boolean delineated a statically mounted PoLControl device.
+
+    """
+
+    component_type: str = ""
     is_static: bool
 
     def __init__(
         self,
         config: dict,  # TODO: SUPPORT CONFIG FILENAME IMPORT
-        component_type: str = "",
         component_id: str = "",  # TODO: Optional args to directly pass in existing pressure and valve control and skip config
         mount_arm: Axis | None = None,  # TODO: Take from config
         disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
@@ -64,9 +73,6 @@ class PressureOverLiquidControl:
                 the instance is treated as static. Defaults to None.
             disable_axes (tuple): Axes to disable during tip engagement moves.
                 Defaults to ``()``.
-            component_type (str): Class identifier for this component
-                (e.g. ``"dispenser"`` or ``"pipettor"``). Used for logging.
-                Defaults to ``""``.
             component_id (str): Instance name used to look up this component
                 inside ``config["components"]``. Defaults to ``""``.
             pressure_control: Instance of already-instantiated pressure control device.
@@ -78,9 +84,9 @@ class PressureOverLiquidControl:
 
         """
         # TODO: If neither config nor pressure/valve control passed in, init error
-        self.component_type = component_type
+
         self.component_id = component_id
-        logger.info(f"Initializing {component_type} (id={component_id!r})")
+        logger.info(f"Initializing {self.component_type} (id={component_id!r})")
         parsed_config = config.get("component_config", config)
         self.config = parsed_config["components"][component_id]
         self.active_channels = self.config["control_modules"]["valve"]["active_valve_terminals"]
@@ -114,7 +120,7 @@ class PressureOverLiquidControl:
 
         self._set_all_calibrations()  # TODO: modify config such that multiple pressures can have calibration per process  in the json
         logger.info(
-            f"{component_type} initialization complete — channels={self.active_channels}, "
+            f"{self.component_type} initialization complete — channels={self.active_channels}, "
             f"liquid_classes={list(self.config['calibration'].keys())}, "
             f"static={self.is_static}"
         )

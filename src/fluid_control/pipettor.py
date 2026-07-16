@@ -18,48 +18,12 @@ class Pipettor(Aspirator, Dispenser):
     """
     Festo Eight-channel pressure-over-liquid pipettor.
 
-    All fluid-handling logic is implemented in ``PressureOverLiquidControl``;
-    this class binds it to the ``"pipettor"`` component key in the config.
+    All fluid-handling backend logic is implemented in ``PressureOverLiquidControl``;
+    The public methods ``aspirate`` and ``dispense`` are implemented in their respective classes
+    and inherited here.
     """
 
-    def __init__(
-        self,
-        config: dict,
-        component_id: str = "pipettor_1",
-        mount_arm: Axis | None = None,
-        disable_axes: tuple[Axis, ...] = (),
-        pressure_control=None,
-        valve_control=None,
-    ):
-        """
-        Initialise the Pipettor from an instrument configuration dict.
-
-        Args:
-            config (dict): Full instrument configuration; the component keyed
-                by ``component_id`` is extracted and used.
-            component_id (str): Key of this pipettor instance inside
-                ``config["components"]``. Defaults to ``"pipettor_1"``.
-            mount_arm: ``Axis`` used for tip pickup/eject motion.
-                If ``None`` the pipettor is static. Defaults to None.
-            disable_axes (tuple): Axes to disable during tip engagement moves.
-                Defaults to ``()``.
-            pressure_control: Instance of already-instantiated pressure control device.
-                Opinionated choice that this is a PGVA with some support for
-                PLC-controlled VEAB at present.
-            valve_control: Instance of already-instantiated valve control device.
-                Opinionated choice that this is a VAEM with some support for single valves controlled
-                by the DO pin on the PGVA at present.
-
-        """
-        super(Dispenser, self).__init__(
-            config,
-            component_type="pipettor",
-            component_id=component_id,
-            mount_arm=mount_arm,
-            disable_axes=disable_axes,
-            pressure_control=pressure_control,
-            valve_control=valve_control,
-        )
+    component_type: str = "pipettor"
 
     def mix(self, mix_dict: dict, cycles: int) -> None:
         """
