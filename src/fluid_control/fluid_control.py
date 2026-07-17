@@ -597,7 +597,21 @@ class PressureOverLiquidControl(FluidControl):
             if monotonic() > deadline:
                 raise TimeoutError(f"Timed out after {timeout}s waiting for valve control readiness")
             sleep(_WAIT_POLL_INTERVAL_S)
+
+    def _require_arm(self) -> Axis:
+        """
+        Return the configured motion axis, raising if the instance is static.
+
+        Returns:
+            Axis: The configured mount arm.
+
+        Raises:
+            NotImplementedError: If no motion axis is configured (static instance).
+
+        """
+        if self.mount_arm is None:
             raise NotImplementedError(self._STATIC_ERROR)
+        return self.mount_arm
 
     def _disable_lateral_axes(self) -> None:
         logger.debug("Disabling target axes")
