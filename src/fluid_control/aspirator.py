@@ -11,13 +11,8 @@ in the style of the Festo Easy Positioning API and integrated via support in the
 festo-applied-motion library.
 """
 
-import logging
-
 from fluid_control.capabilities import AspirateMixin
 from fluid_control.fluid_control import PressureOverLiquidControl
-from applied_motion import Axis
-
-logger = logging.getLogger(__name__)
 
 
 class Aspirator(AspirateMixin, PressureOverLiquidControl):
@@ -29,44 +24,10 @@ class Aspirator(AspirateMixin, PressureOverLiquidControl):
     for their respective hardware modules.
 
     The ``aspirate`` operation is provided by :class:`~fluid_control.capabilities.AspirateMixin`.
+
+    Construction is handled entirely by
+    :class:`~fluid_control.fluid_control.PressureOverLiquidControl`; ``component_id``
+    defaults to ``"aspirator_1"`` (derived from ``component_type``).
     """
 
     component_type: str = "aspirator"
-
-    def __init__(
-        self,
-        config: dict,
-        component_id: str | None = None,
-        mount_arm: Axis | None = None,
-        disable_axes: tuple[Axis, ...] = (),
-        pressure_control=None,
-        valve_control=None,
-    ):
-        """
-        Initialize Aspirator class.
-
-        Args:
-            config (dict): Aspirator configuration.
-            component_id (str | None): Key of this Aspirator instance inside
-                ``config["components"]``. Defaults to ``f"{component_type}_1"`` (e.g. ``"aspirator_1"``).
-            mount_arm (Axis | None, optional): Mobile arm the aspirator is mounted on, if one exists. Defaults to None.
-            disable_axes (tuple, optional): Tuple of Axis objects to disable when doing specified actions. Defaults to ().
-                NOTE: Some physical systems do not enable this because the gantry is operated by coordinated motor action.
-            pressure_control: Instance of already-instantiated pressure control device.
-                Opinionated choice that this is a PGVA with some support for
-                PLC-controlled VEAB at present.
-            valve_control: Instance of already-instantiated valve control device.
-                Opinionated choice that this is a VAEM with some support for single valves controlled
-                by the DO pin on the PGVA at present.
-
-        """
-        if component_id is None:
-            component_id = f"{self.component_type}_1"
-        super().__init__(
-            config,
-            component_id=component_id,
-            mount_arm=mount_arm,
-            disable_axes=disable_axes,
-            pressure_control=pressure_control,
-            valve_control=valve_control,
-        )

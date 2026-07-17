@@ -56,10 +56,17 @@ class PressureOverLiquidControl(FluidControl):
         "axis via the configuration file if this was done in error."
     )
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        """Enforce that every concrete subclass declares a non-empty ``component_type``."""
+        super().__init_subclass__(**kwargs)
+        if not cls.component_type:
+            raise TypeError(f"{cls.__name__} must define a non-empty 'component_type' class attribute")
+
     def __init__(
         self,
         config: dict,  # TODO: SUPPORT CONFIG FILENAME IMPORT
-        component_id: str = "",  # TODO: Optional args to directly pass in existing pressure and valve control and skip config
+        component_id: str | None = None,
+        # TODO: Optional args to directly pass in existing pressure and valve control and skip config
         mount_arm: Axis | None = None,  # TODO: Take from config
         disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
         pressure_control=None,
@@ -75,8 +82,8 @@ class PressureOverLiquidControl(FluidControl):
                 the instance is treated as static. Defaults to None.
             disable_axes (tuple): Axes to disable during tip engagement moves.
                 Defaults to ``()``.
-            component_id (str): Instance name used to look up this component
-                inside ``config["components"]``. Defaults to ``""``.
+            component_id (str | None): Instance name used to look up this component
+                inside ``config["components"]``. Defaults to ``f"{component_type}_1"``.
             pressure_control: Instance of already-instantiated pressure control device.
                 Opinionated choice that this is a PGVA with some support for
                 PLC-controlled VEAB at present.
@@ -86,7 +93,14 @@ class PressureOverLiquidControl(FluidControl):
 
         """
         # TODO: If neither config nor pressure/valve control passed in, init error
+        if type(self) is PressureOverLiquidControl:
+            raise TypeError(
+                "PressureOverLiquidControl is an abstract base and cannot be instantiated directly; "
+                "use a concrete subclass such as Dispenser, Aspirator, or Pipettor."
+            )
 
+        if component_id is None:
+            component_id = f"{self.component_type}_1"
         self.component_id = component_id
         logger.info(f"Initializing {self.component_type} (id={component_id!r})")
         parsed_config = config.get("component_config", config)
