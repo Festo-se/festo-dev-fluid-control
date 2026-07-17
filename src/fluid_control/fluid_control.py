@@ -458,7 +458,95 @@ class PressureOverLiquidControl(FluidControl):
             self.fluid_control_status.set_error()
             return [self.fluid_control_status.get_status(), str(e)]
 
-    def _pressure_status_dispath(self):
+    def dispense(self, dispense_dict: dict[int, ChannelCommand]) -> None:
+        """
+        Dispense liquid across the given channels.
+
+        This default implementation is overridden by
+        :class:`~fluid_control.capabilities.DispenseMixin`. Devices that do not
+        compose that mixin do not support dispensing.
+
+        Args:
+            dispense_dict (dict[int, ChannelCommand]): Mapping of channel ID to command.
+
+        Raises:
+            NotImplementedError: Always, unless overridden by a capability mixin.
+
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support dispensing.")
+
+    def aspirate(self, aspirate_dict: dict[int, ChannelCommand]) -> None:
+        """
+        Aspirate liquid across the given channels.
+
+        This default implementation is overridden by
+        :class:`~fluid_control.capabilities.AspirateMixin`. Devices that do not
+        compose that mixin do not support aspiration.
+
+        Args:
+            aspirate_dict (dict[int, ChannelCommand]): Mapping of channel ID to command.
+
+        Raises:
+            NotImplementedError: Always, unless overridden by a capability mixin.
+
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support aspiration.")
+
+    def mix(self, mix_dict: dict[int, ChannelCommand], cycles: int) -> None:
+        """
+        Mix liquid by repeated aspirate/dispense on the given channels.
+
+        This default implementation is overridden by
+        :class:`~fluid_control.capabilities.MixMixin`. Devices that do not
+        compose that mixin do not support mixing.
+
+        Args:
+            mix_dict (dict[int, ChannelCommand]): Mapping of channel ID to command.
+            cycles (int): Number of aspirate/dispense cycles to execute.
+
+        Raises:
+            NotImplementedError: Always, unless overridden by a capability mixin.
+
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support mixing.")
+
+    def pickup_tips(self, duration: float) -> list[int | str]:
+        """
+        Pick up tips using the mount arm.
+
+        This default implementation is overridden by
+        :class:`~fluid_control.capabilities.TipHandlingMixin`. Devices that do not
+        compose that mixin do not support tip pickup.
+
+        Args:
+            duration (float): Duration in seconds of each downward jog toward the tips.
+
+        Returns:
+            list: ``[status_code, message]`` describing the outcome.
+
+        Raises:
+            NotImplementedError: Always, unless overridden by a capability mixin.
+
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support tip pickup.")
+
+    def eject_tips(self) -> list[int | str]:
+        """
+        Eject tips using pneumatic actuation.
+
+        This default implementation is overridden by
+        :class:`~fluid_control.capabilities.TipHandlingMixin`. Devices that do not
+        compose that mixin do not support tip ejection.
+
+        Returns:
+            list: ``[status_code, message]`` describing the outcome.
+
+        Raises:
+            NotImplementedError: Always, unless overridden by a capability mixin.
+
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support tip ejection.")
+
         pressure_control = self.pressure_control
         if hasattr(pressure_control, "get_status_word"):
             return pressure_control.get_status_word()
