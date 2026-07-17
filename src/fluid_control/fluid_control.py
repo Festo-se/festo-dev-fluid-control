@@ -410,7 +410,7 @@ class PressureOverLiquidControl(FluidControl):
             logger.error(f"LIQUID HANDLING OPERATION FAILED: {e}")
             raise
 
-    def direct_command(self, channel_times: dict[int, int], pressure: int) -> list[int | str]:
+    def direct_command(self, channel_times: dict, pressure: int) -> list[int | str]:
         """
         Send raw pressure and valve-timing commands, bypassing volume calibration.
 
@@ -441,10 +441,16 @@ class PressureOverLiquidControl(FluidControl):
                 logger.debug(f"Channel {channel} (Valve contoller {channel}): opening_time={opening_time}ms")
             self.valve_control.open_selected_valves()
             # Wait for valve operation to complete (Readiness==1 means ready)
+            deadline = monotonic() + _DEFAULT_WAIT_TIMEOUT_S
             while True:
                 status = self.valve_control.get_status()
                 if status["Readiness"] == 1:
                     break
+                if monotonic() > deadline:
+                    raise TimeoutError(
+                        f"Timed out after {_DEFAULT_WAIT_TIMEOUT_S}s waiting for valve readiness in direct_command"
+                    )
+                sleep(_WAIT_POLL_INTERVAL_S)
             # Return pressure to neutral and wait for it to stabilize
             self._wait_output_pressure(-1)
             for channel in channel_times:
