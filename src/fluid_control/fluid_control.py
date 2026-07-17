@@ -342,8 +342,7 @@ class PressureOverLiquidControl(FluidControl):
                 Current configuration contains {tuple(current_classes)}.
             """)
 
-    def _handle_liquid(self, liquid_dict: dict, process: str) -> list[int | str]:
-        # try:
+    def _handle_liquid(self, liquid_dict: dict[int, ChannelCommand], process: str) -> list[int | str]:
         logger.info(
             f"HANDLE LIQUID START: process={process}, "
             f"channels={list(liquid_dict.keys())}, "
