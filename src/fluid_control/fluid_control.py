@@ -391,7 +391,7 @@ class PressureOverLiquidControl(FluidControl):
         #     logger.error(f"LIQUID HANDLING OPERATION FAILED: {e}")
         #     return [self.fluid_control_status.get_status(), str(e)]
 
-    def direct_command(self, channel_times: dict[int, int], pressure: int) -> list[int | str]:
+    def direct_command(self, channel_times: dict, pressure: int) -> list[int | str]:
         """
         Send raw pressure and valve-timing commands, bypassing volume calibration.
 
@@ -570,82 +570,74 @@ class PressureOverLiquidControl(FluidControl):
         return False
 
 
+class StatusCode(IntEnum):
+    """
+    Fluid-control operation status codes.
+
+    Members are int-compatible (``IntEnum``) so existing consumers that compare
+    against or serialise the raw integers ``0``/``1``/``2`` continue to work.
+    """
+
+    CLEAR = 0
+    ERROR = 1
+    BUSY = 2
+
+
 class Status:
     """
     Simple status code container used by fluid-control operations.
 
     Attributes:
-        code (int): Current status — ``0`` clear, ``1`` error, ``2`` busy.
+        code (StatusCode): Current status — ``CLEAR`` (0), ``ERROR`` (1), or ``BUSY`` (2).
         message (str): Optional human-readable status message.
 
     """
 
     def __init__(self) -> None:
         """Initialise status to the clear (0) state."""
-        self.code = 0
+        self.code: StatusCode = StatusCode.CLEAR
         self.message = ""
 
     def get_status(self) -> int:
         """Return the current status code."""
-        return self.code
+        return int(self.code)
 
     def __repr__(self) -> str:
         """Return unambiguous string representation."""
-        return f"Status(code={self.code}, message={self.message!r})"
+        return f"Status(code={int(self.code)}, message={self.message!r})"
 
     def __str__(self) -> str:
         """Return human-readable status label."""
-        return {0: "clear", 1: "error", 2: "busy"}.get(self.code, f"unknown({self.code})")
+        return {
+            StatusCode.CLEAR: "clear",
+            StatusCode.ERROR: "error",
+            StatusCode.BUSY: "busy",
+        }.get(self.code, f"unknown({int(self.code)})")
 
     def __bool__(self) -> bool:
         """Return True when status is clear (0)."""
-        return self.code == 0
+        return self.code == StatusCode.CLEAR
 
     def __eq__(self, other: object) -> bool:
         """Return True if status codes are equal; also supports comparison with int."""
         if isinstance(other, Status):
             return self.code == other.code
         if isinstance(other, int):
-            return self.code == other
+            return int(self.code) == other
         return NotImplemented
 
     def __hash__(self) -> int:
         """Return hash of the status code."""
-        return hash(self.code)
+        return hash(int(self.code))
 
     def set_clear(self) -> None:
         """Set status to clear (0)."""
-        self.code = 0
+        self.code = StatusCode.CLEAR
 
     def set_error(self) -> None:
         """Set status to error (1)."""
-        self.code = 1
+        self.code = StatusCode.ERROR
 
     def set_busy(self) -> None:
         """Set status to busy (2)."""
-        self.code = 2
-
-
-def validate_config(config: dict) -> bool:
-    """
-    Validate an instrument configuration dict.
-
-    Args:
-        config (dict): Configuration dict to validate.
-
-    Returns:
-        bool: ``True`` if the configuration is valid.
-
-    Raises:
-        ValueError: If any required field is absent or has an invalid value.
-
-    """
-    # TODO: This is better situated in the configurator module, probably.
-    pass
-    valid_config = False
-
-    incorrect_field_value = {}
-    if not valid_config:
-        raise ValueError(f"""Bad configuration detected. \
-            Please check {incorrect_field_value} and your configuration for consistency.""")
-    return True
+        self.code = StatusCode.BUSY
