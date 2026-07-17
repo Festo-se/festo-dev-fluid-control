@@ -17,6 +17,8 @@ Key mock invariants:
 
 import pytest
 
+from fluid_control.fluid_control import OperationResult
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -243,7 +245,7 @@ class TestEjectTips:
 
     def test_returns_success_tuple(self, pipettor_with_arm):
         result = pipettor_with_arm.eject_tips()
-        assert result == [0, "Tips ejected successfully"]
+        assert result == OperationResult(0, "Tips ejected successfully")
 
     def test_status_clear_after_success(self, pipettor_with_arm):
         pipettor_with_arm.eject_tips()
@@ -282,7 +284,7 @@ class TestPickupTips:
 
     def test_returns_success_tuple(self, pipettor_with_arm):
         result = pipettor_with_arm.pickup_tips(duration=0.5)
-        assert result == [0, "Tips picked up successfully"]
+        assert result == OperationResult(0, "Tips picked up successfully")
 
     def test_status_clear_after_success(self, pipettor_with_arm):
         pipettor_with_arm.pickup_tips(duration=0.5)
@@ -370,7 +372,7 @@ class TestDirectCommand:
         """
         self._set_vaem_ready(dispenser)
         result = dispenser.direct_command({1: 100}, pressure=50)
-        assert result == [0, "Direct command executed successfully"]
+        assert result == OperationResult(0, "Direct command executed successfully")
 
     def test_deselects_all_channels_after_operation(self, dispenser):
         self._set_vaem_ready(dispenser)
@@ -627,4 +629,56 @@ class TestRequireArm:
         assert dispenser.mount_arm is None
         with pytest.raises(NotImplementedError):
             dispenser._require_arm()
+
+
+class TestOperationResult:
+    """OperationResult is both index- and attribute-accessible and behaves as a tuple."""
+
+    @staticmethod
+    def _set_vaem_ready(dispenser):
+        dispenser.mock_vaem.get_status.return_value = {
+            "Status": 1,
+            "Error": 0,
+            "Readiness": 1,
+            "OperatingMode": 1,
+            **{f"Valve{i}": 0 for i in range(1, 9)},
+        }
+
+    def test_direct_command_returns_operation_result(self, dispenser):
+        self._set_vaem_ready(dispenser)
+        result = dispenser.direct_command({1: 100}, pressure=50)
+        assert isinstance(result, OperationResult)
+
+    def test_supports_index_and_attribute_access(self, dispenser):
+        self._set_vaem_ready(dispenser)
+        result = dispenser.direct_command({1: 100}, pressure=50)
+        assert result[0] == result.code == 0
+        assert result[1] == result.message
+
+    def test_is_a_tuple(self, dispenser):
+        self._set_vaem_ready(dispenser)
+        result = dispenser.direct_command({1: 100}, pressure=50)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_construction_dual_access(self):
+        result = OperationResult(0, "done")
+        assert result[0] == 0
+        assert result[1] == "done"
+        assert result.code == 0
+        assert result.message == "done"
+        assert result == (0, "done")
+
+    def test_error_path_returns_operation_result(self, dispenser, monkeypatch):
+        monkeypatch.setattr("fluid_control.fluid_control._DEFAULT_WAIT_TIMEOUT_S", 0.01)
+        dispenser.mock_vaem.get_status.return_value = {
+            "Status": 1,
+            "Error": 0,
+            "Readiness": 0,
+            "OperatingMode": 1,
+            **{f"Valve{i}": 0 for i in range(1, 9)},
+        }
+        result = dispenser.direct_command({1: 100}, pressure=50)
+        assert isinstance(result, OperationResult)
+        assert result.code == 1
 
