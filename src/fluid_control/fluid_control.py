@@ -563,35 +563,39 @@ class PressureOverLiquidControl(FluidControl):
         logger.debug(f"get_status: {status}")
         return status
 
-    def _wait_output_pressure(self, pressure: int, timeout: float = _DEFAULT_WAIT_TIMEOUT_S) -> None:
+    def _wait_output_pressure(self, pressure: int) -> None:
         logger.debug(f"Setting and waiting for pressure: {pressure}")
         logger.debug(f"Calling set_output_pressure({pressure})")
         self.pressure_control.set_output_pressure(pressure=pressure)
         logger.debug("set_output_pressure returned, starting poll loop")
-        deadline = monotonic() + timeout
+        current = self.pressure_control.get_output_pressure()
         while True:
-            current = self.pressure_control.get_output_pressure()
-            if math.isclose(current, pressure, abs_tol=1):
+            if math.isclose(self.pressure_control.get_output_pressure(), pressure, abs_tol=1):
                 logger.debug(f"Pressure reached: {current}")
                 break
-            if monotonic() > deadline:
-                raise TimeoutError(
-                    f"Timed out after {timeout}s waiting for output pressure to reach {pressure} (last read {current})"
-                )
-            sleep(_WAIT_POLL_INTERVAL_S)
+            current = self.pressure_control.get_output_pressure()
         return None
 
-    def _wait_valve_control_ready(self, timeout: float = _DEFAULT_WAIT_TIMEOUT_S) -> None:
+    def _wait_valve_control_ready(self) -> None:
         logger.debug("Waiting for valve control ready")
-        deadline = monotonic() + timeout
         while True:
             status = self.valve_control.get_status()
             if status["Readiness"]:
                 break
-            if monotonic() > deadline:
-                raise TimeoutError(f"Timed out after {timeout}s waiting for valve control readiness")
-            sleep(_WAIT_POLL_INTERVAL_S)
+    def _require_arm(self) -> Axis:
+        """
+        Return the configured motion axis, raising if the instance is static.
+
+        Returns:
+            Axis: The configured mount arm.
+
+        Raises:
+            NotImplementedError: If no motion axis is configured (static instance).
+
+        """
+        if self.mount_arm is None:
             raise NotImplementedError(self._STATIC_ERROR)
+        return self.mount_arm
 
     def _disable_lateral_axes(self) -> None:
         logger.debug("Disabling target axes")
