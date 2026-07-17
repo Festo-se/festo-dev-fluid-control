@@ -255,10 +255,10 @@ class PressureOverLiquidControl(FluidControl):
 
     def _get_calibration_values(self, liquid_class: str, process: str) -> tuple[dict, dict]:
         """Get the calibration values from the calibration curves."""
-        self.flow_offset_vars = self.config["calibration"][liquid_class][process]["flow_coefficients"]
-        self.volume_offset_vars = self.config["calibration"][liquid_class][process]["volume_offset_coefficients"]
+        flow_offset_vars = self.config["calibration"][liquid_class][process]["flow_coefficients"]
+        volume_offset_vars = self.config["calibration"][liquid_class][process]["volume_offset_coefficients"]
 
-        return (self.flow_offset_vars, self.volume_offset_vars)
+        return (flow_offset_vars, volume_offset_vars)
 
     def set_new_calibration(self, calib: dict):
         """Set the calibration values from the calibration curves."""
