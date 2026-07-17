@@ -11,7 +11,7 @@ from abc import ABC
 from collections.abc import Callable, Iterator, KeysView
 from enum import IntEnum
 from time import monotonic, sleep
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 import json
 import math
 import logging
@@ -44,6 +44,24 @@ class ChannelCommand(TypedDict):
 
     volume: float
     liquid_class: str
+
+
+class OperationResult(NamedTuple):
+    """
+    Outcome of a fluid-control operation.
+
+    Behaves as a ``(code, message)`` sequence for backward compatibility
+    (``result[0]`` / ``result[1]``) while also exposing the named fields
+    ``code`` and ``message``.
+
+    Attributes:
+        code (int): Status code — ``0`` clear, ``1`` error, ``2`` busy.
+        message (str): Human-readable description of the outcome.
+
+    """
+
+    code: int
+    message: str
 
 
 class FluidControl(ABC):  # noqa: B024
@@ -342,7 +360,7 @@ class PressureOverLiquidControl(FluidControl):
                 Current configuration contains {tuple(current_classes)}.
             """)
 
-    def _handle_liquid(self, liquid_dict: dict[int, ChannelCommand], process: str) -> list[int | str]:
+    def _handle_liquid(self, liquid_dict: dict[int, ChannelCommand], process: str) -> OperationResult:
         logger.info(
             f"HANDLE LIQUID START: process={process}, "
             f"channels={list(liquid_dict.keys())}, "
@@ -400,16 +418,16 @@ class PressureOverLiquidControl(FluidControl):
                 self.valve_control.deselect_valve(channel)
             self.fluid_control_status.set_clear()
             logger.info("LIQUID HANDLING OPERATION COMPLETE")
-            return [
+            return OperationResult(
                 self.fluid_control_status.get_status(),
                 f"{process}".capitalize() + " process executed successfully",
-            ]
+            )
         except Exception as e:
             self.fluid_control_status.set_error()
             logger.error(f"LIQUID HANDLING OPERATION FAILED: {e}")
             raise
 
-    def direct_command(self, channel_times: dict[int, int], pressure: int) -> list[int | str]:
+    def direct_command(self, channel_times: dict[int, int], pressure: int) -> OperationResult:
         """
         Send raw pressure and valve-timing commands, bypassing volume calibration.
 
@@ -457,11 +475,11 @@ class PressureOverLiquidControl(FluidControl):
 
             self.fluid_control_status.set_clear()
             logger.info("DIRECT COMMAND COMPLETE")
-            return [self.fluid_control_status.get_status(), "Direct command executed successfully"]
+            return OperationResult(self.fluid_control_status.get_status(), "Direct command executed successfully")
         except Exception as e:
             logger.error(f"DIRECT COMMAND FAILED: {e}")
             self.fluid_control_status.set_error()
-            return [self.fluid_control_status.get_status(), str(e)]
+            return OperationResult(self.fluid_control_status.get_status(), str(e))
 
     def dispense(self, dispense_dict: dict[int, ChannelCommand]) -> None:
         """
@@ -515,7 +533,7 @@ class PressureOverLiquidControl(FluidControl):
         """
         raise NotImplementedError(f"{type(self).__name__} does not support mixing.")
 
-    def pickup_tips(self, duration: float) -> list[int | str]:
+    def pickup_tips(self, duration: float) -> OperationResult:
         """
         Pick up tips using the mount arm.
 
@@ -527,7 +545,7 @@ class PressureOverLiquidControl(FluidControl):
             duration (float): Duration in seconds of each downward jog toward the tips.
 
         Returns:
-            list: ``[status_code, message]`` describing the outcome.
+            OperationResult: ``(code, message)`` describing the outcome.
 
         Raises:
             NotImplementedError: Always, unless overridden by a capability mixin.
@@ -535,7 +553,7 @@ class PressureOverLiquidControl(FluidControl):
         """
         raise NotImplementedError(f"{type(self).__name__} does not support tip pickup.")
 
-    def eject_tips(self) -> list[int | str]:
+    def eject_tips(self) -> OperationResult:
         """
         Eject tips using pneumatic actuation.
 
@@ -544,7 +562,7 @@ class PressureOverLiquidControl(FluidControl):
         compose that mixin do not support tip ejection.
 
         Returns:
-            list: ``[status_code, message]`` describing the outcome.
+            OperationResult: ``(code, message)`` describing the outcome.
 
         Raises:
             NotImplementedError: Always, unless overridden by a capability mixin.

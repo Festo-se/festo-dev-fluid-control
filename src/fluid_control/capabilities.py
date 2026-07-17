@@ -18,7 +18,7 @@ while at runtime they remain lightweight traits with no base of their own.
 import logging
 from typing import TYPE_CHECKING
 
-from fluid_control.fluid_control import ChannelCommand
+from fluid_control.fluid_control import ChannelCommand, OperationResult
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ class MixMixin(_EngineBase):
 class TipHandlingMixin(_EngineBase):
     """Adds tip pickup and ejection to a device that has a motion axis."""
 
-    def eject_tips(self) -> list[int | str]:
+    def eject_tips(self) -> OperationResult:
         """Eject tips from the fluid control module."""
         # TODO: How to consider static, mechanical, deck-based, fixed-point ejection mode
         # Make optional?
@@ -127,12 +127,12 @@ class TipHandlingMixin(_EngineBase):
             self.fluid_control_status.set_clear()
             self._enable_lateral_axes()
             logger.info("EJECT TIPS COMPLETE")
-            return [self.fluid_control_status.get_status(), "Tips ejected successfully"]
+            return OperationResult(self.fluid_control_status.get_status(), "Tips ejected successfully")
         except Exception as e:
             logger.error(f"EJECT TIPS FAILED: {e}")
             self.fluid_control_status.set_error()
             self._enable_lateral_axes()
-            return [self.fluid_control_status.get_status(), str(e)]
+            return OperationResult(self.fluid_control_status.get_status(), str(e))
 
     def _pickup_action(self, duration: float) -> None:
         """Jog the mount arm downward until tip engagement stalls its motion."""
@@ -167,7 +167,7 @@ class TipHandlingMixin(_EngineBase):
         self._enable_lateral_axes()
         arm.acknowledge_faults()
 
-    def pickup_tips(self, duration: float) -> list[int | str]:
+    def pickup_tips(self, duration: float) -> OperationResult:
         """
         Pick up tips with the fluid_control.
 
@@ -182,8 +182,8 @@ class TipHandlingMixin(_EngineBase):
             self._pickup_action(duration=duration)
             self.fluid_control_status.set_clear()
             logger.info("PICKUP TIPS COMPLETE")
-            return [self.fluid_control_status.get_status(), "Tips picked up successfully"]
+            return OperationResult(self.fluid_control_status.get_status(), "Tips picked up successfully")
         except Exception as e:
             logger.error(f"PICKUP TIPS FAILED: {e}")
             self.fluid_control_status.set_error()
-            return [self.fluid_control_status.get_status(), str(e)]
+            return OperationResult(self.fluid_control_status.get_status(), str(e))
