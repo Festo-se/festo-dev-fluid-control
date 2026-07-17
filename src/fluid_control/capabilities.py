@@ -18,7 +18,18 @@ while at runtime they remain lightweight traits with no base of their own.
 import logging
 from typing import TYPE_CHECKING
 
+from fluid_control.fluid_control import ChannelCommand
+
 logger = logging.getLogger(__name__)
+
+# Tip-ejection actuation parameters (see per-line TODOs for future parameterisation).
+_EJECT_ACTUATION_CYCLES = 3
+_EJECT_MAX_PRESSURE_MBAR = 449
+_EJECT_MIN_PRESSURE_MBAR = -449
+
+# Tip-pickup stall-detection parameters.
+_PICKUP_STALL_DELTA_MM = 0.5
+_PICKUP_STALL_CONSECUTIVE = 2
 
 if TYPE_CHECKING:
     from fluid_control.fluid_control import PressureOverLiquidControl
@@ -31,7 +42,7 @@ else:
 class DispenseMixin(_EngineBase):
     """Adds pressure-over-liquid dispensing to a device."""
 
-    def dispense(self, dispense_dict: dict) -> None:
+    def dispense(self, dispense_dict: dict[int, ChannelCommand]) -> None:
         """
         Dispense liquid across one or more valve controller channels.
 
@@ -47,7 +58,7 @@ class DispenseMixin(_EngineBase):
 class AspirateMixin(_EngineBase):
     """Adds pressure-over-liquid aspiration to a device."""
 
-    def aspirate(self, aspirate_dict: dict) -> None:
+    def aspirate(self, aspirate_dict: dict[int, ChannelCommand]) -> None:
         """
         Aspirate liquid across one or more valve controller channels.
 
@@ -63,7 +74,7 @@ class AspirateMixin(_EngineBase):
 class MixMixin(_EngineBase):
     """Adds mixing (repeated aspirate/dispense) to a device."""
 
-    def mix(self, mix_dict: dict, cycles: int) -> None:
+    def mix(self, mix_dict: dict[int, ChannelCommand], cycles: int) -> None:
         """
         Aspirate and dispense repeatedly to mix liquid in the channels.
 
@@ -98,17 +109,17 @@ class TipHandlingMixin(_EngineBase):
         self.fluid_control_status.set_busy()
         self._disable_lateral_axes()
         try:
-            for cycle in range(3):
+            for cycle in range(_EJECT_ACTUATION_CYCLES):
                 logger.debug(
-                    f"Eject tips: actuation cycle {cycle + 1}/3"
+                    f"Eject tips: actuation cycle {cycle + 1}/{_EJECT_ACTUATION_CYCLES}"
                 )  # TODO: Parameterize the total number of eject cycles for testing
                 self._wait_output_pressure(
-                    449
+                    _EJECT_MAX_PRESSURE_MBAR
                 )  # TODO: Change to Pressure Control Library max pressure. Will need slight modificiation of PGVA library
                 self.pressure_control.trigger_actuation_valve(10)
                 self.pressure_control.trigger_actuation_valve(1000)
                 self._wait_output_pressure(
-                    -449
+                    _EJECT_MIN_PRESSURE_MBAR
                 )  # TODO: Change to Pressure Control Library min pressure. Will need slight modificiation of PGVA library
                 self.pressure_control.trigger_actuation_valve(10)
                 self.pressure_control.trigger_actuation_valve(2000)
@@ -125,24 +136,24 @@ class TipHandlingMixin(_EngineBase):
 
     def _pickup_action(self, duration: float) -> None:
         """Jog the mount arm downward until tip engagement stalls its motion."""
-        self._require_arm()
-        delta = 0.5  # mm — FestoAxis.current_position() returns mm
-        self.mount_arm.acknowledge_faults()  # TODO: We need a way to NOT dig this deep into internals of the edcon library
+        arm = self._require_arm()
+        delta = _PICKUP_STALL_DELTA_MM  # mm — FestoAxis.current_position() returns mm
+        arm.acknowledge_faults()  # TODO: We need a way to NOT dig this deep into internals of the edcon library
         # self.mount_arm.disable_powerstage()
-        current_position = self.mount_arm.current_position()
+        current_position = arm.current_position()
         logger.debug(f"_pickup_action: start position={current_position}, duration={duration}, delta={delta}")
         repeat = True
         count = 0
         self._disable_lateral_axes()
         while repeat:
-            self.mount_arm.acknowledge_faults()
-            self.mount_arm.enable_powerstage()
-            self.mount_arm.jog_task(
+            arm.acknowledge_faults()
+            arm.enable_powerstage()
+            arm.jog_task(
                 True, False, duration=duration
             )  # TODO: Passing all the way to jog_task defeats the purpose of the axis class and make the parameters passed / API confusing. Think of a way to fix this.
             # self.mount_arm.position_task(position=5000, velocity=duration, absolute=False, nonblocking=False)
             # self.mount_arm.jog_task(True, False, duration=0.5)
-            new_position = self.mount_arm.current_position()
+            new_position = arm.current_position()
             movement = abs(new_position - current_position)
             logger.debug(f"_pickup_action: new_position={new_position}, movement={movement}, stall_count={count}")
             if movement <= delta:
@@ -150,11 +161,11 @@ class TipHandlingMixin(_EngineBase):
                 current_position = new_position
             else:
                 current_position = new_position
-            if count > 1:  # TODO: Parameterize this for testing
+            if count >= _PICKUP_STALL_CONSECUTIVE:  # TODO: Parameterize this for testing
                 logger.debug("_pickup_action: stall detected — tip engagement complete")
                 repeat = False
         self._enable_lateral_axes()
-        self.mount_arm.acknowledge_faults()
+        arm.acknowledge_faults()
 
     def pickup_tips(self, duration: float) -> list[int | str]:
         """
@@ -169,7 +180,7 @@ class TipHandlingMixin(_EngineBase):
         self.fluid_control_status.set_busy()
         try:
             self._pickup_action(duration=duration)
-            self.fluid_control_status.code = 0
+            self.fluid_control_status.set_clear()
             logger.info("PICKUP TIPS COMPLETE")
             return [self.fluid_control_status.get_status(), "Tips picked up successfully"]
         except Exception as e:
