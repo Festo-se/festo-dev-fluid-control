@@ -1,9 +1,10 @@
 """Unit tests specific to the ``Dispenser`` subclass.
 
 ``Dispenser`` composes ``DispenseMixin`` onto ``PressureOverLiquidControl``,
-so it exposes ``dispense`` but not ``aspirate``, ``mix``, ``eject_tips``, or
-``pickup_tips`` — a dispenser simply does not have those capabilities.
-Everything else is inherited.
+so it supports ``dispense`` but not ``aspirate``, ``mix``, ``eject_tips``, or
+``pickup_tips``.  The base engine declares those capabilities as stubs that
+raise ``NotImplementedError``, so a dispenser exposes the methods but rejects
+them at call time.  Everything else is inherited.
 """
 
 import pytest
@@ -24,20 +25,24 @@ class TestDispenserClassHierarchy:
 
 
 class TestDispenserCapabilityAbsence:
-    """A dispenser is composed with ``DispenseMixin`` only, so it must not
-    expose aspirate, mix, or tip-handling operations at all."""
+    """A dispenser is composed with ``DispenseMixin`` only, so aspirate, mix, and
+    tip-handling operations reject at call time with ``NotImplementedError``."""
 
-    def test_has_no_aspirate_method(self, dispenser):
-        assert not hasattr(dispenser, "aspirate")
+    def test_aspirate_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.aspirate({1: {"volume": 10.0, "liquid_class": "water"}})
 
-    def test_has_no_mix_method(self, dispenser):
-        assert not hasattr(dispenser, "mix")
+    def test_mix_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.mix({1: {"volume": 10.0, "liquid_class": "water"}}, 3)
 
-    def test_has_no_eject_tips_method(self, dispenser):
-        assert not hasattr(dispenser, "eject_tips")
+    def test_eject_tips_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.eject_tips()
 
-    def test_has_no_pickup_tips_method(self, dispenser):
-        assert not hasattr(dispenser, "pickup_tips")
+    def test_pickup_tips_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.pickup_tips(0.5)
 
 
 class TestDispenserDispenseInherited:

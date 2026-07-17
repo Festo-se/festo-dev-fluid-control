@@ -1,4 +1,5 @@
-"""Unit tests for fluid-control operations: dispense, aspirate, mix, get_status,
+"""
+Unit tests for fluid-control operations: dispense, aspirate, mix, get_status,
 direct_command, eject_tips, pickup_tips.
 
 All tests run without hardware — PGVA, VAEM, and ``sleep`` are mocked via the
@@ -13,7 +14,6 @@ Key mock invariants:
 - ``sleep`` is a no-op so valve-timing waits are instantaneous.
 """
 
-from unittest.mock import call
 
 import pytest
 
@@ -24,8 +24,10 @@ import pytest
 
 
 def _set_pressure_values(mock_pressure) -> list[int]:
-    """Collect all values passed to set_output_pressure (handles both
-    positional and keyword call forms used in production code)."""
+    """
+    Collect all values passed to set_output_pressure (handles both
+    positional and keyword call forms used in production code).
+    """
     result = []
     for c in mock_pressure.set_output_pressure.call_args_list:
         result.append(c.args[0] if c.args else c.kwargs["pressure"])
@@ -173,9 +175,10 @@ class TestAspirate:
 
 
 class TestMix:
-    def test_dispenser_has_no_mix_capability(self, dispenser):
-        """A dispenser is not composed with MixMixin and must not expose mix()."""
-        assert not hasattr(dispenser, "mix")
+    def test_dispenser_mix_raises_not_implemented(self, dispenser):
+        """A dispenser is not composed with MixMixin; mix() rejects with NotImplementedError."""
+        with pytest.raises(NotImplementedError):
+            dispenser.mix({1: {"volume": 10.0, "liquid_class": "water"}}, 3)
 
     def test_succeeds_on_static_pipettor(self, pipettor_instance):
         """Mixing is valid on a static pipettor (no motion arm required)."""
@@ -229,9 +232,10 @@ class TestGetStatus:
 
 
 class TestEjectTips:
-    def test_dispenser_has_no_eject_tips_capability(self, dispenser):
-        """A dispenser is not composed with TipHandlingMixin and must not expose eject_tips()."""
-        assert not hasattr(dispenser, "eject_tips")
+    def test_dispenser_eject_tips_raises_not_implemented(self, dispenser):
+        """A dispenser is not composed with TipHandlingMixin; eject_tips() rejects with NotImplementedError."""
+        with pytest.raises(NotImplementedError):
+            dispenser.eject_tips()
 
     def test_raises_not_implemented_when_static_on_pipettor(self, pipettor_instance):
         with pytest.raises(NotImplementedError, match="static"):
@@ -267,9 +271,10 @@ class TestEjectTips:
 
 
 class TestPickupTips:
-    def test_dispenser_has_no_pickup_tips_capability(self, dispenser):
-        """A dispenser is not composed with TipHandlingMixin and must not expose pickup_tips()."""
-        assert not hasattr(dispenser, "pickup_tips")
+    def test_dispenser_pickup_tips_raises_not_implemented(self, dispenser):
+        """A dispenser is not composed with TipHandlingMixin; pickup_tips() rejects with NotImplementedError."""
+        with pytest.raises(NotImplementedError):
+            dispenser.pickup_tips(0.5)
 
     def test_raises_not_implemented_when_static_on_pipettor(self, pipettor_instance):
         with pytest.raises(NotImplementedError, match="static"):
@@ -359,8 +364,10 @@ class TestDirectCommand:
         assert 50 in pressure_calls
 
     def test_returns_success_tuple_with_valid_inputs(self, dispenser):
-        """``direct_command`` with valid channel/pressure inputs returns status 0
-        and the success message string."""
+        """
+        ``direct_command`` with valid channel/pressure inputs returns status 0
+        and the success message string.
+        """
         self._set_vaem_ready(dispenser)
         result = dispenser.direct_command({1: 100}, pressure=50)
         assert result == [0, "Direct command executed successfully"]
@@ -547,4 +554,77 @@ class TestWaitValveControlReady:
         initial = dispenser.mock_vaem.get_status.call_count
         dispenser._wait_valve_control_ready()
         assert dispenser.mock_vaem.get_status.call_count > initial
+
+
+class TestWaitTimeouts:
+    """The polling loops must be bounded so a stuck sensor cannot hang forever."""
+
+    def test_wait_output_pressure_raises_timeout_when_never_converges(self, dispenser):
+        # Pressure reading never approaches the target → loop must time out.
+        dispenser.mock_pressure.get_output_pressure.side_effect = None
+        dispenser.mock_pressure.get_output_pressure.return_value = 9999
+        with pytest.raises(TimeoutError):
+            dispenser._wait_output_pressure(0, timeout=0.01)
+
+    def test_wait_valve_control_ready_raises_timeout_when_never_ready(self, dispenser):
+        dispenser.mock_vaem.get_status.return_value = {
+            "Status": 1,
+            "Error": 0,
+            "Readiness": 0,  # never becomes ready
+            "OperatingMode": 1,
+            **{f"Valve{i}": 0 for i in range(1, 9)},
+        }
+        with pytest.raises(TimeoutError):
+            dispenser._wait_valve_control_ready(timeout=0.01)
+
+    def test_direct_command_returns_error_on_valve_readiness_timeout(self, dispenser, monkeypatch):
+        # Valve never reports Readiness==1; the bounded loop must raise, and
+        # direct_command converts that into an error result tuple.
+        monkeypatch.setattr("fluid_control.fluid_control._DEFAULT_WAIT_TIMEOUT_S", 0.01)
+        dispenser.mock_vaem.get_status.return_value = {
+            "Status": 1,
+            "Error": 0,
+            "Readiness": 0,
+            "OperatingMode": 1,
+            **{f"Valve{i}": 0 for i in range(1, 9)},
+        }
+        result = dispenser.direct_command({1: 100}, pressure=50)
+        assert result[0] == 1
+        assert "Timed out" in result[1]
+
+
+class TestCapabilityDefaults:
+    """A device raises NotImplementedError for capabilities it does not compose."""
+
+    def test_dispenser_aspirate_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.aspirate({1: {"volume": 10.0, "liquid_class": "water"}})
+
+    def test_dispenser_mix_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.mix({1: {"volume": 10.0, "liquid_class": "water"}}, 3)
+
+    def test_dispenser_pickup_tips_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.pickup_tips(0.5)
+
+    def test_dispenser_eject_tips_raises_not_implemented(self, dispenser):
+        with pytest.raises(NotImplementedError):
+            dispenser.eject_tips()
+
+    def test_error_message_names_the_device_type(self, dispenser):
+        with pytest.raises(NotImplementedError, match="Dispenser"):
+            dispenser.aspirate({1: {"volume": 10.0, "liquid_class": "water"}})
+
+
+class TestRequireArm:
+    """_require_arm returns the configured axis or raises for a static instance."""
+
+    def test_returns_configured_arm(self, pipettor_with_arm):
+        assert pipettor_with_arm._require_arm() is pipettor_with_arm.mount_arm
+
+    def test_static_instance_raises_not_implemented(self, dispenser):
+        assert dispenser.mount_arm is None
+        with pytest.raises(NotImplementedError):
+            dispenser._require_arm()
 

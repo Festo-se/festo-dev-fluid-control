@@ -183,8 +183,9 @@ class TestTestDispenserOperations:
         test_dispenser.mock_vaem.select_valve.assert_any_call(valve_id=1)
         test_dispenser.mock_vaem.select_valve.assert_any_call(valve_id=2)
 
-    def test_dispenser_has_no_aspirate_capability(self, test_dispenser):
-        assert not hasattr(test_dispenser, "aspirate")
+    def test_dispenser_aspirate_raises_not_implemented(self, test_dispenser):
+        with pytest.raises(NotImplementedError):
+            test_dispenser.aspirate({1: {"volume": 100, "liquid_class": "water"}})
 
     def test_status_clear_after_dispense(self, test_dispenser):
         test_dispenser.dispense({1: {"volume": 100, "liquid_class": "water"}})

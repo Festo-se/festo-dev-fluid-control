@@ -4,7 +4,7 @@
 These tests are self-contained — no fixtures, no mocks, no hardware.
 """
 
-from fluid_control.fluid_control import Status
+from fluid_control.fluid_control import Status, StatusCode
 
 
 class TestStatusInitialState:
@@ -210,3 +210,29 @@ class TestStatusHash:
         s = Status()
         d = {s: "value"}
         assert d[s] == "value"
+
+
+class TestStatusCode:
+    """The StatusCode IntEnum backing Status."""
+
+    def test_clear_is_zero(self):
+        assert StatusCode.CLEAR == 0
+
+    def test_error_is_one(self):
+        assert StatusCode.ERROR == 1
+
+    def test_busy_is_two(self):
+        assert StatusCode.BUSY == 2
+
+    def test_is_int_compatible(self):
+        assert isinstance(StatusCode.CLEAR, int)
+
+    def test_status_uses_statuscode_internally(self):
+        s = Status()
+        assert s.code is StatusCode.CLEAR
+        s.set_error()
+        assert s.code is StatusCode.ERROR
+        s.set_busy()
+        assert s.code is StatusCode.BUSY
+        s.set_clear()
+        assert s.code is StatusCode.CLEAR
