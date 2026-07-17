@@ -19,6 +19,8 @@ from pgva import PGVA, PGVATCPConfig
 from vaem import VAEM, VAEMTCPConfig
 from applied_motion import Axis
 
+from fluid_control.device_config import DeviceConfig
+
 
 # Library modules must not configure the root logger or open log files on import;
 # that is the responsibility of the application entry point. Attach a NullHandler so
@@ -142,10 +144,10 @@ class PressureOverLiquidControl(FluidControl):
             component_id = f"{self.component_type}_1"
         self.component_id = component_id
         logger.info(f"Initializing {self.component_type} (id={component_id!r})")
-        parsed_config = config.get("component_config", config)
-        self.config = parsed_config["components"][component_id]
-        self.active_channels = self.config["control_modules"]["valve"]["active_valve_terminals"]
-        self.active_valve_count = len(self.active_channels)
+        self.device_config = DeviceConfig(config, component_id)
+        self.config = self.device_config.raw
+        self.active_channels = self.device_config.active_channels
+        self.active_valve_count = self.device_config.active_valve_count
 
         if pressure_control is not None:
             self.pressure_control = pressure_control
@@ -154,12 +156,12 @@ class PressureOverLiquidControl(FluidControl):
 
         if valve_control is not None:
             self.valve_control = valve_control
-            self._set_valve_error_handling(self.config, component_id)
+            self._set_valve_error_handling()
         else:
             self._init_valve_control()
 
         self.fluid_control_status = Status()
-        self.channel_count = self.config["fluid-channel-count"]
+        self.channel_count = self.device_config.channel_count
         # Always bind mount_arm (None when static) so callers can rely on the attribute
         # existing; _require_arm() enforces the static/dynamic contract.
         self.mount_arm: Axis | None = mount_arm  # TODO: make this a param input via config
@@ -183,88 +185,49 @@ class PressureOverLiquidControl(FluidControl):
 
     def set_pressures(self) -> None:
         """Populate ``self.pressures`` from the calibration config for each liquid class and process."""
-        self.pressures = {}
-        calibration = self.config["calibration"]
-
-        for liquid_class in calibration.keys():
-            if liquid_class not in self.pressures:
-                self.pressures[liquid_class] = {}
-            for process in calibration[liquid_class].keys():
-                self.pressures[liquid_class][process] = calibration[liquid_class][process]["parameters"]["pressure"]
+        self.pressures = self.device_config.build_pressures()
 
     def get_liquid_classes(self) -> KeysView[str]:
         """Return the liquid-class keys present in the current calibration config."""
-        return self.config["calibration"].keys()
+        return self.device_config.liquid_classes()
 
-    def _init_pressure_control(self, config: dict | None = None) -> None:
-        """
-        Initialize the PGVA with the given configuration.
-
-        Inputs:
-
-            config: From overall configuration file,
-                the dictionary that contains the PGVA configuration.
-        """
-        name = self.config["control_modules"]["pressure"]["name"]
-        logger.debug(f"Initializing Pressure Controller {name}.")
-        if "pgva" not in self.config["control_modules"]["pressure"]["name"]:
+    def _init_pressure_control(self) -> None:
+        """Initialize the PGVA pressure controller from the device configuration."""
+        iface = self.device_config.pressure_interface
+        logger.debug(f"Initializing Pressure Controller {iface.name}.")
+        if "pgva" not in iface.name:
             raise NotImplementedError("Pressure control without a PGVA is not implemented")
 
-        # pressure_configs = {
-        #     self.config["control_modules"]["pressure"]["channel"]: "pressure",
-        #     self.config["control_modules"]["regulator"]["channel"]: "regulator",
-        # }
-
-        if config is None:
-            config = self.config
-        ip = config["control_modules"]["pressure"]["interface"]["ip"]  # TODO: Unhardcode from TCP backend
-        port = config["control_modules"]["pressure"]["interface"]["port"]
         self.pressure_control_config = PGVATCPConfig(
-            interface=config["control_modules"]["pressure"]["interface"]["type"],
-            unit_id=config["control_modules"]["pressure"]["uuid"],
-            ip=ip,
-            port=port,
+            interface=iface.interface_type,
+            unit_id=iface.unit_id,
+            ip=iface.ip,
+            port=iface.port,
         )
         self.pressure_control = PGVA(config=self.pressure_control_config)
-        logger.debug(f"Pressure controller {name} initialized at {ip}:{port}")
+        logger.debug(f"Pressure controller {iface.name} initialized at {iface.ip}:{iface.port}")
 
-    def _init_valve_control(
-        self, config: dict | None = None
-    ) -> None:  # TODO: Make sure active_valve_terminals is being used appropriately
-        """
-        Initialize the VAEM with the given configuration.
-
-        Inputs:
-            config: From overall configuration file,
-                the dictionary that contains the PGVA configuration.
-        """
-        name = self.config["control_modules"]["valve"]["name"]
-        logger.debug(f"Initializing valve control module {name}.")
-        if "vaem" not in self.config["control_modules"]["valve"]["name"]:
+    def _init_valve_control(self) -> None:
+        """Initialize the VAEM valve controller from the device configuration."""
+        iface = self.device_config.valve_interface
+        logger.debug(f"Initializing valve control module {iface.name}.")
+        if "vaem" not in iface.name:
             raise NotImplementedError("Pressure control without a VAEM is not implemented")
 
-        if config is None:
-            config = self.config
-        ip = config["control_modules"]["valve"]["interface"]["ip"]
-        port = config["control_modules"]["valve"]["interface"]["port"]
         self.valve_control_config = VAEMTCPConfig(
-            interface=config["control_modules"]["valve"]["interface"]["type"],
-            unit_id=1,  # config["control_modules"]["valve"]["uuid"],
-            ip=config["control_modules"]["valve"]["interface"]["ip"],
-            port=config["control_modules"]["valve"]["interface"]["port"],
+            interface=iface.interface_type,
+            unit_id=iface.unit_id,
+            ip=iface.ip,
+            port=iface.port,
         )
         self.valve_control = VAEM(config=self.valve_control_config)
-        logger.debug(f"Valve controller {name} initialized at {ip}:{port}")
-        self._set_valve_error_handling(config, name)
+        logger.debug(f"Valve controller {iface.name} initialized at {iface.ip}:{iface.port}")
+        self._set_valve_error_handling()
 
-    def _set_valve_error_handling(self, config, name):
-        logger.debug(f"Valve controller {name} set error handling config: {self.config}")
-        error_handling = [
-            valve_info["type"]["error-handling"]
-            for valve_info in self.config["control_modules"]["valve"]["valve_type"].values()
-        ]
-
-        self._valve_error_handling_status = all(error_handling)
+    def _set_valve_error_handling(self) -> None:
+        """Apply the aggregate valve error-handling setting to the valve controller."""
+        name = self.device_config.valve_interface.name
+        self._valve_error_handling_status = self.device_config.valve_error_handling
         self.valve_control.set_error_handling(activate=int(self._valve_error_handling_status))
         logger.debug(f"Valve controller {name} module-set error handling status: {self._valve_error_handling_status}")
         logger.debug(
@@ -273,8 +236,8 @@ class PressureOverLiquidControl(FluidControl):
 
     def _get_calibration_values(self, liquid_class: str, process: str) -> tuple[dict, dict]:
         """Get the calibration values from the calibration curves."""
-        flow_offset_vars = self.config["calibration"][liquid_class][process]["flow_coefficients"]
-        volume_offset_vars = self.config["calibration"][liquid_class][process]["volume_offset_coefficients"]
+        flow_offset_vars = self.device_config.flow_coefficients(liquid_class, process)
+        volume_offset_vars = self.device_config.volume_offset_coefficients(liquid_class, process)
 
         return (flow_offset_vars, volume_offset_vars)
 
