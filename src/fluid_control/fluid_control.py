@@ -481,7 +481,7 @@ class PressureOverLiquidControl(FluidControl):
         if self.is_static or getattr(self, "mount_arm", None) is None:
             raise NotImplementedError(self._STATIC_ERROR)
 
-    def _disable_xy_axes(self) -> None:
+    def _disable_lateral_axes(self) -> None:
         logger.debug("Disabling target axes")
         self._require_arm()
 
@@ -489,7 +489,7 @@ class PressureOverLiquidControl(FluidControl):
             axis.acknowledge_faults()
             axis.disable_powerstage()
 
-    def _enable_xy_axes(self) -> None:
+    def _enable_lateral_axes(self) -> None:
         logger.debug("Enabling the axes in action disable list")
         self._require_arm()
         for axis in self.disable_axes:

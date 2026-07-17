@@ -9,7 +9,7 @@ class PressureControl:
         self.controller.set_veab(pressure)
 
     def get_output_pressure(self):
-        self.controller.get_veab()
+        return self.controller.get_veab()
 
     def get_status(self):
         pass

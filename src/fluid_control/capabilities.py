@@ -6,7 +6,7 @@ Capability mixins for pressure-over-liquid fluid-handling devices.
 Each mixin contributes a single public operation (or a cohesive group of
 operations) and delegates into the engine primitives provided by
 :class:`~fluid_control.fluid_control.PressureOverLiquidControl` (e.g.
-``_handle_liquid``, ``_require_arm``, ``_disable_xy_axes``). Mixins are pure
+``_handle_liquid``, ``_require_arm``, ``_disable_lateral_axes``). Mixins are pure
 ``object`` subclasses at runtime and are never instantiated directly; concrete
 devices compose them onto the engine.
 
@@ -96,7 +96,7 @@ class TipHandlingMixin(_EngineBase):
         logger.info("EJECT TIPS START")
         self._require_arm()
         self.fluid_control_status.set_busy()
-        self._disable_xy_axes()
+        self._disable_lateral_axes()
         try:
             for cycle in range(3):
                 logger.debug(
@@ -114,13 +114,13 @@ class TipHandlingMixin(_EngineBase):
                 self.pressure_control.trigger_actuation_valve(2000)
             self.pressure_control.set_output_pressure(0)
             self.fluid_control_status.set_clear()
-            self._enable_xy_axes()
+            self._enable_lateral_axes()
             logger.info("EJECT TIPS COMPLETE")
             return [self.fluid_control_status.get_status(), "Tips ejected successfully"]
         except Exception as e:
             logger.error(f"EJECT TIPS FAILED: {e}")
             self.fluid_control_status.set_error()
-            self._enable_xy_axes()
+            self._enable_lateral_axes()
             return [self.fluid_control_status.get_status(), str(e)]
 
     def _pickup_action(self, duration: float) -> None:
@@ -133,7 +133,7 @@ class TipHandlingMixin(_EngineBase):
         logger.debug(f"_pickup_action: start position={current_position}, duration={duration}, delta={delta}")
         repeat = True
         count = 0
-        self._disable_xy_axes()
+        self._disable_lateral_axes()
         while repeat:
             self.mount_arm.acknowledge_faults()
             self.mount_arm.enable_powerstage()
@@ -153,7 +153,7 @@ class TipHandlingMixin(_EngineBase):
             if count > 1:  # TODO: Parameterize this for testing
                 logger.debug("_pickup_action: stall detected — tip engagement complete")
                 repeat = False
-        self._enable_xy_axes()
+        self._enable_lateral_axes()
         self.mount_arm.acknowledge_faults()
 
     def pickup_tips(self, duration: float) -> list[int | str]:
