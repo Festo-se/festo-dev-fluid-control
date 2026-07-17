@@ -574,24 +574,29 @@ class PressureOverLiquidControl(FluidControl):
         logger.debug(f"Calling set_output_pressure({pressure})")
         self.pressure_control.set_output_pressure(pressure=pressure)
         logger.debug("set_output_pressure returned, starting poll loop")
-        current = self.pressure_control.get_output_pressure()
+        deadline = monotonic() + timeout
         while True:
-            if math.isclose(self.pressure_control.get_output_pressure(), pressure, abs_tol=1):
+            current = self.pressure_control.get_output_pressure()
+            if math.isclose(current, pressure, abs_tol=1):
                 logger.debug(f"Pressure reached: {current}")
                 break
-            current = self.pressure_control.get_output_pressure()
+            if monotonic() > deadline:
+                raise TimeoutError(
+                    f"Timed out after {timeout}s waiting for output pressure to reach {pressure} (last read {current})"
+                )
+            sleep(_WAIT_POLL_INTERVAL_S)
         return None
 
-    def _wait_valve_control_ready(self) -> None:
+    def _wait_valve_control_ready(self, timeout: float = _DEFAULT_WAIT_TIMEOUT_S) -> None:
         logger.debug("Waiting for valve control ready")
+        deadline = monotonic() + timeout
         while True:
             status = self.valve_control.get_status()
             if status["Readiness"]:
                 break
-
-    def _require_arm(self) -> None:
-        """Raise if no motion axis is configured for tip/mix operations."""
-        if self.is_static or getattr(self, "mount_arm", None) is None:
+            if monotonic() > deadline:
+                raise TimeoutError(f"Timed out after {timeout}s waiting for valve control readiness")
+            sleep(_WAIT_POLL_INTERVAL_S)
             raise NotImplementedError(self._STATIC_ERROR)
 
     def _disable_lateral_axes(self) -> None:
