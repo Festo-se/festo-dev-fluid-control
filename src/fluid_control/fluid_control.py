@@ -146,8 +146,6 @@ class PressureOverLiquidControl(FluidControl):
         return self.config["calibration"].keys()
 
     def _init_pressure_control(self, config: dict | None = None) -> None:
-        name = self.config["control_modules"]["valve"]["name"]
-        logger.debug(f"Initializing Pressure Controller {name}.")
         """
         Initialize the PGVA with the given configuration.
 
@@ -156,6 +154,8 @@ class PressureOverLiquidControl(FluidControl):
             config: From overall configuration file,
                 the dictionary that contains the PGVA configuration.
         """
+        name = self.config["control_modules"]["pressure"]["name"]
+        logger.debug(f"Initializing Pressure Controller {name}.")
         if "pgva" not in self.config["control_modules"]["pressure"]["name"]:
             raise NotImplementedError("Pressure control without a PGVA is not implemented")
 
@@ -180,8 +180,6 @@ class PressureOverLiquidControl(FluidControl):
     def _init_valve_control(
         self, config: dict | None = None
     ) -> None:  # TODO: Make sure active_valve_terminals is being used appropriately
-        name = self.config["control_modules"]["valve"]["name"]
-        logger.debug(f"Initializing valve control module {name}.")
         """
         Initialize the VAEM with the given configuration.
 
@@ -189,6 +187,8 @@ class PressureOverLiquidControl(FluidControl):
             config: From overall configuration file,
                 the dictionary that contains the PGVA configuration.
         """
+        name = self.config["control_modules"]["valve"]["name"]
+        logger.debug(f"Initializing valve control module {name}.")
         if "vaem" not in self.config["control_modules"]["valve"]["name"]:
             raise NotImplementedError("Pressure control without a VAEM is not implemented")
 
@@ -279,9 +279,6 @@ class PressureOverLiquidControl(FluidControl):
         return slope_map
 
     def _set_timing(self, channel: int, volume: float, active_channels: int, liquid_class: str, process: str) -> int:
-        logger.debug(
-            f"Setting timing: channel={channel}, volume={volume}uL, active_channels={active_channels}, liquid_class={liquid_class}, process={process}"
-        )
         """
         Set the timing for the VAEM valve based on the channel, volume, and number of active channels.
 
@@ -291,6 +288,9 @@ class PressureOverLiquidControl(FluidControl):
                 active_channels: Number of active channels (1 to 8 for VAEM)
                 process: "aspirate" or "dispense"
         """
+        logger.debug(
+            f"Setting timing: channel={channel}, volume={volume}uL, active_channels={active_channels}, liquid_class={liquid_class}, process={process}"
+        )
         self.valve_control.select_valve(valve_id=channel)
         slope = self.valve_control_timing_functions[liquid_class][process][str(channel)]["slope"](active_channels)
         intercept = self.valve_control_timing_functions[liquid_class][process][str(channel)]["intercept"](
