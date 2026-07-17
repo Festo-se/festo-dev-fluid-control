@@ -342,7 +342,8 @@ class PressureOverLiquidControl(FluidControl):
                 Current configuration contains {tuple(current_classes)}.
             """)
 
-    def _handle_liquid(self, liquid_dict: dict[int, ChannelCommand], process: str) -> list[int | str]:
+    def _handle_liquid(self, liquid_dict: dict, process: str) -> list[int | str]:
+        # try:
         logger.info(
             f"HANDLE LIQUID START: process={process}, "
             f"channels={list(liquid_dict.keys())}, "
@@ -409,7 +410,7 @@ class PressureOverLiquidControl(FluidControl):
             logger.error(f"LIQUID HANDLING OPERATION FAILED: {e}")
             raise
 
-    def direct_command(self, channel_times: dict, pressure: int) -> list[int | str]:
+    def direct_command(self, channel_times: dict[int, int], pressure: int) -> list[int | str]:
         """
         Send raw pressure and valve-timing commands, bypassing volume calibration.
 
