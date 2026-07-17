@@ -547,16 +547,17 @@ class PressureOverLiquidControl(FluidControl):
         """
         raise NotImplementedError(f"{type(self).__name__} does not support tip ejection.")
 
+    def _pressure_status_dispatch(self) -> dict | None:
+        """Return the pressure controller status word, or ``None`` if unsupported."""
         pressure_control = self.pressure_control
         if hasattr(pressure_control, "get_status_word"):
             return pressure_control.get_status_word()
-        else:
-            return "TODO: implement other status getter"
+        return None
 
     def get_status(self) -> dict:
         """Return the status of the fluid_control."""
         status = {
-            "pressure": self._pressure_status_dispath(),
+            "pressure": self._pressure_status_dispatch(),
             "valve": self.valve_control.get_status(),
             "fluid_control_status": self.fluid_control_status.get_status(),
         }
@@ -582,20 +583,11 @@ class PressureOverLiquidControl(FluidControl):
             status = self.valve_control.get_status()
             if status["Readiness"]:
                 break
-    def _require_arm(self) -> Axis:
-        """
-        Return the configured motion axis, raising if the instance is static.
 
-        Returns:
-            Axis: The configured mount arm.
-
-        Raises:
-            NotImplementedError: If no motion axis is configured (static instance).
-
-        """
-        if self.mount_arm is None:
+    def _require_arm(self) -> None:
+        """Raise if no motion axis is configured for tip/mix operations."""
+        if self.is_static or getattr(self, "mount_arm", None) is None:
             raise NotImplementedError(self._STATIC_ERROR)
-        return self.mount_arm
 
     def _disable_lateral_axes(self) -> None:
         logger.debug("Disabling target axes")
