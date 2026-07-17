@@ -255,10 +255,10 @@ class PressureOverLiquidControl(FluidControl):
 
     def _get_calibration_values(self, liquid_class: str, process: str) -> tuple[dict, dict]:
         """Get the calibration values from the calibration curves."""
-        flow_offset_vars = self.config["calibration"][liquid_class][process]["flow_coefficients"]
-        volume_offset_vars = self.config["calibration"][liquid_class][process]["volume_offset_coefficients"]
+        self.flow_offset_vars = self.config["calibration"][liquid_class][process]["flow_coefficients"]
+        self.volume_offset_vars = self.config["calibration"][liquid_class][process]["volume_offset_coefficients"]
 
-        return (flow_offset_vars, volume_offset_vars)
+        return (self.flow_offset_vars, self.volume_offset_vars)
 
     def set_new_calibration(self, calib: dict):
         """Set the calibration values from the calibration curves."""
@@ -342,8 +342,7 @@ class PressureOverLiquidControl(FluidControl):
                 Current configuration contains {tuple(current_classes)}.
             """)
 
-    def _handle_liquid(self, liquid_dict: dict, process: str) -> list[int | str]:
-        # try:
+    def _handle_liquid(self, liquid_dict: dict[int, ChannelCommand], process: str) -> list[int | str]:
         logger.info(
             f"HANDLE LIQUID START: process={process}, "
             f"channels={list(liquid_dict.keys())}, "
