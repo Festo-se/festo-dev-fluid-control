@@ -342,7 +342,8 @@ class PressureOverLiquidControl(FluidControl):
                 Current configuration contains {tuple(current_classes)}.
             """)
 
-    def _handle_liquid(self, liquid_dict: dict[int, ChannelCommand], process: str) -> list[int | str]:
+    def _handle_liquid(self, liquid_dict: dict, process: str) -> list[int | str]:
+        # try:
         logger.info(
             f"HANDLE LIQUID START: process={process}, "
             f"channels={list(liquid_dict.keys())}, "
@@ -350,67 +351,64 @@ class PressureOverLiquidControl(FluidControl):
         )
         self.fluid_control_status.set_busy()
         # TODO: Mix command doesn't work well with this formulation of the liquid handlinng algorithm
+        try:
+            longest_open_time = 0
 
-        longest_open_time = 0
+            for channel, command_params in liquid_dict.items():
+                liquid_class = command_params["liquid_class"]
+                self._validate_liquid_class(liquid_class=liquid_class)
+                self._validate_channel_command((channel, command_params["volume"]))
 
-        for channel, command_params in liquid_dict.items():
-            liquid_class = command_params["liquid_class"]
-            self._validate_liquid_class(liquid_class=liquid_class)
-            self._validate_channel_command((channel, command_params["volume"]))
+                logger.debug(f"Valve controller status before configuring timing for channel {channel}")
+                vc_status = self.valve_control.get_status()
+                logger.debug(f"{vc_status}")
+                new_time = self._set_timing(  # TODO: Check if _set_timing has sign guard
+                    channel=channel,
+                    volume=command_params["volume"],
+                    active_channels=self.active_valve_count,
+                    liquid_class=liquid_class,
+                    process=process,
+                )
+                longest_open_time = max(new_time, longest_open_time)
+            logger.debug(f"Waiting for {process} pressure: {self.pressures[liquid_class][process]}")
+            self._wait_output_pressure(
+                self.pressures[liquid_class][process]
+            )  # This will use the presssure for the last liquid class which isn't technically correct.
+            # Need to group timing commands by liquid class, set pressure and execute for "correct" operation. In practice, this will never happen though.
+            # Could also throw error when multiple liquid classes are part of input and say this is not strictly supported. Would need seperate pressure control modules or separable pressure reservoirs with in and out valves.
 
-            logger.debug(f"Valve controller status before configuring timing for channel {channel}")
+            logger.debug("Opening valve (waiting for readiness)")
+            if process == "dispense":
+                repeat = True  # TODO: What is this doing? Why is this here?
+                while repeat:
+                    self.valve_control.open_selected_valves()
+                    status = self.valve_control.get_status()
+                    if status["Readiness"] == 0:
+                        repeat = False
+            else:
+                self.valve_control.open_selected_valves()
+            logger.debug("Valve controller status after opening valve")
             vc_status = self.valve_control.get_status()
             logger.debug(f"{vc_status}")
-            new_time = self._set_timing(  # TODO: Check if _set_timing has sign guard
-                channel=channel,
-                volume=command_params["volume"],
-                active_channels=self.active_valve_count,
-                liquid_class=liquid_class,
-                process=process,
-            )
-            longest_open_time = max(new_time, longest_open_time)
-        logger.debug(f"Waiting for {process} pressure: {self.pressures[liquid_class][process]}")
-        self._wait_output_pressure(
-            self.pressures[liquid_class][process]
-        )  # This will use the presssure for the last liquid class which isn't technically correct.
-        # Need to group timing commands by liquid class, set pressure and execute for "correct" operation. In practice, this will never happen though.
-        # Could also throw error when multiple liquid classes are part of input and say this is not strictly supported. Would need seperate pressure control modules or separable pressure reservoirs with in and out valves.
 
-        logger.debug("Opening valve (waiting for readiness)")
-        if process == "dispense":
-            repeat = True  # TODO: What is this doing? Why is this here?
-            while repeat:
-                self.valve_control.open_selected_valves()
-                status = self.valve_control.get_status()
-                if status["Readiness"] == 0:
-                    repeat = False
-        else:
-            self.valve_control.open_selected_valves()
-        logger.debug("Valve controller status after opening valve")
-        vc_status = self.valve_control.get_status()
-        logger.debug(f"{vc_status}")
-        """
-        status = self.valve_control.get_status()
-        while status['Readiness'] == 1:
-            self.valve_control.open_selected_valves()
-            status = self.valve_control.get_status()
-        """
-
-        logger.debug(f"Waiting for valve timing to complete: {longest_open_time}ms")
-        sleep(longest_open_time / 1000)
-        self._wait_output_pressure(
-            0
-        )  # TODO: Is this necessary? What happens if we hold the closed valves at pressure over time?
-        for channel, _ in liquid_dict.items():
-            logger.debug(f"Deselecting valve {channel} (VC channel {channel})")
-            self.valve_control.deselect_valve(channel)
-        self.fluid_control_status.set_clear()
-        logger.info("LIQUID HANDLING OPERATION COMPLETE")
-        return [self.fluid_control_status.get_status(), f"{process}".capitalize() + " process executed successfully"]
-        # except Exception as e:
-        #     self.fluid_control_status.set_error()
-        #     logger.error(f"LIQUID HANDLING OPERATION FAILED: {e}")
-        #     return [self.fluid_control_status.get_status(), str(e)]
+            logger.debug(f"Waiting for valve timing to complete: {longest_open_time}ms")
+            sleep(longest_open_time / 1000)
+            self._wait_output_pressure(
+                0
+            )  # TODO: Is this necessary? What happens if we hold the closed valves at pressure over time?
+            for channel, _ in liquid_dict.items():
+                logger.debug(f"Deselecting valve {channel} (VC channel {channel})")
+                self.valve_control.deselect_valve(channel)
+            self.fluid_control_status.set_clear()
+            logger.info("LIQUID HANDLING OPERATION COMPLETE")
+            return [
+                self.fluid_control_status.get_status(),
+                f"{process}".capitalize() + " process executed successfully",
+            ]
+        except Exception as e:
+            self.fluid_control_status.set_error()
+            logger.error(f"LIQUID HANDLING OPERATION FAILED: {e}")
+            raise
 
     def direct_command(self, channel_times: dict, pressure: int) -> list[int | str]:
         """
