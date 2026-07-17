@@ -5,10 +5,11 @@ Festo Dispenser module containing Dispenser class and support functions.
 
 Configurable class for dispensing applications.
 For now, this class assumes use of a Festo VAEM and PGVA for valve and
-pressure control respectively. Optional hooks in development for proporional pressure regulation
+pressure control respectively. Optional hooks in development for proportional pressure regulation
 using a VEAB connected to a Festo PLC and communicated with via socket using an API
-in the style of the Festo Easy Postioning API and integrated via support in the
-festo-applied-motion library. This will be separated in
+in the style of the Festo Easy Positioning API and integrated via support in the
+festo-applied-motion library. This will be separated into a dedicated pressure-control
+backend in a future revision.
 """
 
 import logging
@@ -36,7 +37,7 @@ class Dispenser(DispenseMixin, PressureOverLiquidControl):
     def __init__(
         self,
         config: dict,
-        component_id: str = "dispenser_1",
+        component_id: str | None = None,
         mount_arm: Axis | None = None,
         disable_axes: tuple[Axis, ...] = (),
         pressure_control=None,
@@ -47,8 +48,8 @@ class Dispenser(DispenseMixin, PressureOverLiquidControl):
 
         Args:
             config (dict): Dispenser configuration.
-            component_id (str): Key of this dispenser instance inside
-                ``config["components"]``. Defaults to ``"dispenser_1"``.
+            component_id (str | None): Key of this dispenser instance inside
+                ``config["components"]``. Defaults to ``f"{component_type}_1"`` (e.g. ``"dispenser_1"``).
             mount_arm (Axis | None, optional): Mobile arm the dispenser is mounted on, if one exists. Defaults to None.
             disable_axes (tuple, optional): Axes to disable when doing specified actions. Defaults to ().
             pressure_control: Instance of already-instantiated pressure control device.
@@ -59,6 +60,8 @@ class Dispenser(DispenseMixin, PressureOverLiquidControl):
                 by the DO pin on the PGVA at present.
 
         """
+        if component_id is None:
+            component_id = f"{self.component_type}_1"
         super().__init__(
             config,
             component_id=component_id,

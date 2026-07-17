@@ -5,9 +5,9 @@ Festo Aspirator module containing Aspirator class and support functions.
 
 Configurable class for aspirating applications.
 For now, this class assumes use of a Festo VAEM and PGVA for valve and
-pressure control respectively. Optional hooks in development for proporional pressure regulation
+pressure control respectively. Optional hooks in development for proportional pressure regulation
 using a VEAB connected to a Festo PLC and communicated with via socket using an API
-in the style of the Festo Easy Postioning API and integrated via support in the
+in the style of the Festo Easy Positioning API and integrated via support in the
 festo-applied-motion library.
 """
 
@@ -36,7 +36,7 @@ class Aspirator(AspirateMixin, PressureOverLiquidControl):
     def __init__(
         self,
         config: dict,
-        component_id: str = "aspirator_1",
+        component_id: str | None = None,
         mount_arm: Axis | None = None,
         disable_axes: tuple[Axis, ...] = (),
         pressure_control=None,
@@ -47,8 +47,8 @@ class Aspirator(AspirateMixin, PressureOverLiquidControl):
 
         Args:
             config (dict): Aspirator configuration.
-            component_id (str): Key of this Aspirator instance inside
-                ``config["components"]``. Defaults to ``"aspirator_1"``.
+            component_id (str | None): Key of this Aspirator instance inside
+                ``config["components"]``. Defaults to ``f"{component_type}_1"`` (e.g. ``"aspirator_1"``).
             mount_arm (Axis | None, optional): Mobile arm the aspirator is mounted on, if one exists. Defaults to None.
             disable_axes (tuple, optional): Tuple of Axis objects to disable when doing specified actions. Defaults to ().
                 NOTE: Some physical systems do not enable this because the gantry is operated by coordinated motor action.
@@ -60,6 +60,8 @@ class Aspirator(AspirateMixin, PressureOverLiquidControl):
                 by the DO pin on the PGVA at present.
 
         """
+        if component_id is None:
+            component_id = f"{self.component_type}_1"
         super().__init__(
             config,
             component_id=component_id,

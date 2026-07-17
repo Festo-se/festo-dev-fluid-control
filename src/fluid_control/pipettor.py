@@ -32,7 +32,7 @@ class Pipettor(AspirateMixin, DispenseMixin, MixMixin, TipHandlingMixin, Pressur
     def __init__(
         self,
         config: dict,
-        component_id: str = "pipettor_1",
+        component_id: str | None = None,
         mount_arm: Axis | None = None,
         disable_axes: tuple[Axis, ...] = (),
         pressure_control=None,
@@ -44,8 +44,8 @@ class Pipettor(AspirateMixin, DispenseMixin, MixMixin, TipHandlingMixin, Pressur
         Args:
             config (dict): Full instrument configuration; the component keyed
                 by ``component_id`` is extracted and used.
-            component_id (str): Key of this pipettor instance inside
-                ``config["components"]``. Defaults to ``"pipettor_1"``.
+            component_id (str | None): Key of this pipettor instance inside
+                ``config["components"]``. Defaults to ``f"{component_type}_1"`` (e.g. ``"pipettor_1"``).
             mount_arm (Axis | None, optional): ``Axis`` used for tip pickup/eject motion.
                 If ``None`` the pipettor is static. Defaults to None.
             disable_axes (tuple, optional): Axes to disable during tip engagement moves.
@@ -58,6 +58,8 @@ class Pipettor(AspirateMixin, DispenseMixin, MixMixin, TipHandlingMixin, Pressur
                 by the DO pin on the PGVA at present.
 
         """
+        if component_id is None:
+            component_id = f"{self.component_type}_1"
         super().__init__(
             config,
             component_id=component_id,

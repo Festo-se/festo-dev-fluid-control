@@ -18,14 +18,11 @@ from vaem import VAEM, VAEMTCPConfig
 from applied_motion import Axis
 
 
-# Configure logging with timestamps
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[logging.FileHandler("fluid_control.log"), logging.StreamHandler()],
-)
+# Library modules must not configure the root logger or open log files on import;
+# that is the responsibility of the application entry point. Attach a NullHandler so
+# log records are silently dropped unless the application configures logging.
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class FluidControl(ABC):  # noqa: B024
