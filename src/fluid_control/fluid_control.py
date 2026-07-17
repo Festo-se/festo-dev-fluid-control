@@ -9,7 +9,9 @@ operations, including pressure management, valve timing, tip pickup, and ejectio
 
 from abc import ABC
 from collections.abc import Callable, Iterator, KeysView
-from time import sleep
+from enum import IntEnum
+from time import monotonic, sleep
+from typing import TypedDict
 import json
 import math
 import logging
@@ -23,6 +25,25 @@ from applied_motion import Axis
 # log records are silently dropped unless the application configures logging.
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+# Bounds for the hardware-readiness/pressure polling loops so a stuck sensor or
+# controller cannot hang the process indefinitely.
+_DEFAULT_WAIT_TIMEOUT_S = 30.0
+_WAIT_POLL_INTERVAL_S = 0.05
+
+
+class ChannelCommand(TypedDict):
+    """
+    Per-channel liquid-handling command parameters.
+
+    Attributes:
+        volume (float): Volume to move on the channel, in microlitres.
+        liquid_class (str): Liquid-class key matching a calibration entry.
+
+    """
+
+    volume: float
+    liquid_class: str
 
 
 class FluidControl(ABC):  # noqa: B024
@@ -69,8 +90,8 @@ class PressureOverLiquidControl(FluidControl):
         # TODO: Optional args to directly pass in existing pressure and valve control and skip config
         mount_arm: Axis | None = None,  # TODO: Take from config
         disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
-        pressure_control=None,
-        valve_control=None,
+        pressure_control: PGVA | None = None,
+        valve_control: VAEM | None = None,
     ) -> None:
         """
         Initialize a pressure-over-liquid fluid control module.
@@ -121,9 +142,10 @@ class PressureOverLiquidControl(FluidControl):
 
         self.fluid_control_status = Status()
         self.channel_count = self.config["fluid-channel-count"]
-        self.is_static = mount_arm is None  # TODO: make this a param input via config
-        if not self.is_static:
-            self.mount_arm = mount_arm
+        # Always bind mount_arm (None when static) so callers can rely on the attribute
+        # existing; _require_arm() enforces the static/dynamic contract.
+        self.mount_arm: Axis | None = mount_arm  # TODO: make this a param input via config
+        self.is_static = mount_arm is None
         self.disable_axes = disable_axes
         for valve in self.active_channels:  # TODO for valve in self.active_channels
             self.valve_control.deselect_valve(valve_id=valve)  # TODO
