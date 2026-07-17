@@ -391,7 +391,7 @@ class PressureOverLiquidControl(FluidControl):
         #     logger.error(f"LIQUID HANDLING OPERATION FAILED: {e}")
         #     return [self.fluid_control_status.get_status(), str(e)]
 
-    def direct_command(self, channel_times: dict, pressure: int) -> list[int | str]:
+    def direct_command(self, channel_times: dict[int, int], pressure: int) -> list[int | str]:
         """
         Send raw pressure and valve-timing commands, bypassing volume calibration.
 
