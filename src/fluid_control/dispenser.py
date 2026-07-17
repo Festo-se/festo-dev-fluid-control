@@ -13,19 +13,22 @@ festo-applied-motion library. This will be separated in
 
 import logging
 
+from fluid_control.capabilities import DispenseMixin
 from fluid_control.fluid_control import PressureOverLiquidControl
 from applied_motion import Axis
 
 logger = logging.getLogger(__name__)
 
 
-class Dispenser(PressureOverLiquidControl):
+class Dispenser(DispenseMixin, PressureOverLiquidControl):
     """
     Dispenser class for modular dispensing applications.
 
     Driver for a Festo dispenser, e.g. VTOI, VTOE, VTOF.
     Currently, there are hard-coded dependencies on the festo-pgva and festo-vaem drivers
     for their respective hardware modules.
+
+    The ``dispense`` operation is provided by :class:`~fluid_control.capabilities.DispenseMixin`.
     """
 
     component_type: str = "dispenser"
@@ -64,15 +67,3 @@ class Dispenser(PressureOverLiquidControl):
             pressure_control=pressure_control,
             valve_control=valve_control,
         )
-
-    def dispense(self, dispense_dict: dict) -> None:
-        """
-        Dispense liquid across one or more valve controller channels.
-
-        Args:
-            dispense_dict (dict): Mapping of channel IDs to channel-operation parameters.
-
-        """
-        logger.info(f"DISPENSE START: {dispense_dict}")
-        # TODO: Enable ability to set timing PER CLASS
-        self._handle_liquid(dispense_dict, process="dispense")

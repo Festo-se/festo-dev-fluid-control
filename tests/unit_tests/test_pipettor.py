@@ -27,14 +27,17 @@ class TestPipettorAspirate:
 
 
 class TestPipettorMix:
-    def test_mix_raises_not_implemented_when_static(self, pipettor_instance):
+    def test_mix_succeeds_when_static(self, pipettor_instance):
+        """Mixing does not require a motion arm — a static pipettor may mix."""
         assert pipettor_instance.is_static is True
-        with pytest.raises(NotImplementedError, match="static"):
-            pipettor_instance.mix({1: {"volume": 50, "liquid_class": "water"}}, cycles=1)
+        pipettor_instance.mix({1: {"volume": 50, "liquid_class": "water"}}, cycles=1)
+        # One aspirate + one dispense pass → two valve selections
+        assert pipettor_instance.mock_vaem.select_valve.call_count == 2
 
-    def test_mix_raises_with_multiple_cycles_when_static(self, pipettor_instance):
-        with pytest.raises(NotImplementedError):
-            pipettor_instance.mix({1: {"volume": 50, "liquid_class": "water"}}, cycles=3)
+    def test_mix_runs_all_cycles_when_static(self, pipettor_instance):
+        pipettor_instance.mix({1: {"volume": 50, "liquid_class": "water"}}, cycles=3)
+        # 3 cycles × (aspirate + dispense) → six valve selections
+        assert pipettor_instance.mock_vaem.select_valve.call_count == 6
 
 
 class TestPipettorDispense:

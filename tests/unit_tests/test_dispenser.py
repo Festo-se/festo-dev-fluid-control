@@ -1,9 +1,9 @@
 """Unit tests specific to the ``Dispenser`` subclass.
 
-``Dispenser`` is a thin subclass of ``PressureOverLiquidControl`` which 
-overrides the ``aspirate``, ``eject_tips``, and ``pickup_tips`` method behaviour, 
-so that they always raise ``NotImplementedError`` (dispensers may not be configured 
-to aspirate and cannot manipulate tips).  Everything else is inherited.
+``Dispenser`` composes ``DispenseMixin`` onto ``PressureOverLiquidControl``,
+so it exposes ``dispense`` but not ``aspirate``, ``mix``, ``eject_tips``, or
+``pickup_tips`` — a dispenser simply does not have those capabilities.
+Everything else is inherited.
 """
 
 import pytest
@@ -23,22 +23,21 @@ class TestDispenserClassHierarchy:
         assert not type(dispenser) is object
 
 
-class TestDispenserAspirateOverride:
-    def test_aspirate_raises_not_implemented(self, dispenser):
-        with pytest.raises(NotImplementedError, match="not configured to aspirate"):
-            dispenser.aspirate({1: {"volume": 100, "liquid_class": "water"}})
+class TestDispenserCapabilityAbsence:
+    """A dispenser is composed with ``DispenseMixin`` only, so it must not
+    expose aspirate, mix, or tip-handling operations at all."""
 
-    def test_aspirate_raises_regardless_of_channel(self, dispenser):
-        with pytest.raises(NotImplementedError):
-            dispenser.aspirate({2: {"volume": 50, "liquid_class": "water"}})
+    def test_has_no_aspirate_method(self, dispenser):
+        assert not hasattr(dispenser, "aspirate")
 
-    def test_aspirate_raises_with_empty_dict(self, dispenser):
-        with pytest.raises(NotImplementedError):
-            dispenser.aspirate({})
+    def test_has_no_mix_method(self, dispenser):
+        assert not hasattr(dispenser, "mix")
 
-    def test_aspirate_raises_with_none(self, dispenser):
-        with pytest.raises(NotImplementedError):
-            dispenser.aspirate(None)
+    def test_has_no_eject_tips_method(self, dispenser):
+        assert not hasattr(dispenser, "eject_tips")
+
+    def test_has_no_pickup_tips_method(self, dispenser):
+        assert not hasattr(dispenser, "pickup_tips")
 
 
 class TestDispenserDispenseInherited:

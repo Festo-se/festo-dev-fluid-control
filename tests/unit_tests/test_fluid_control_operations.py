@@ -173,15 +173,16 @@ class TestAspirate:
 
 
 class TestMix:
-    def test_raises_not_implemented_when_static(self, dispenser):
-        assert dispenser.is_static is True
-        with pytest.raises(NotImplementedError, match="not configured to mix"):
-            dispenser.mix({1: {"volume": 100, "liquid_class": "water"}}, cycles=1)
+    def test_dispenser_has_no_mix_capability(self, dispenser):
+        """A dispenser is not composed with MixMixin and must not expose mix()."""
+        assert not hasattr(dispenser, "mix")
 
-    def test_raises_not_implemented_when_static_on_pipettor(self, pipettor_instance):
+    def test_succeeds_on_static_pipettor(self, pipettor_instance):
+        """Mixing is valid on a static pipettor (no motion arm required)."""
         assert pipettor_instance.is_static is True
-        with pytest.raises(NotImplementedError, match="static"):
-            pipettor_instance.mix({1: {"volume": 50, "liquid_class": "water"}}, cycles=2)
+        pipettor_instance.mix({1: {"volume": 50, "liquid_class": "water"}}, cycles=2)
+        # 2 cycles × (aspirate + dispense) → four valve selections
+        assert pipettor_instance.mock_vaem.select_valve.call_count == 4
 
 
 # ---------------------------------------------------------------------------
@@ -228,10 +229,9 @@ class TestGetStatus:
 
 
 class TestEjectTips:
-    def test_raises_not_implemented_when_static(self, dispenser):
-        assert dispenser.is_static is True
-        with pytest.raises(NotImplementedError, match="cannot use tips"):
-            dispenser.eject_tips()
+    def test_dispenser_has_no_eject_tips_capability(self, dispenser):
+        """A dispenser is not composed with TipHandlingMixin and must not expose eject_tips()."""
+        assert not hasattr(dispenser, "eject_tips")
 
     def test_raises_not_implemented_when_static_on_pipettor(self, pipettor_instance):
         with pytest.raises(NotImplementedError, match="static"):
@@ -267,9 +267,9 @@ class TestEjectTips:
 
 
 class TestPickupTips:
-    def test_raises_not_implemented_when_static(self, dispenser):
-        with pytest.raises(NotImplementedError, match="cannot use tips"):
-            dispenser.pickup_tips(duration=0.5)
+    def test_dispenser_has_no_pickup_tips_capability(self, dispenser):
+        """A dispenser is not composed with TipHandlingMixin and must not expose pickup_tips()."""
+        assert not hasattr(dispenser, "pickup_tips")
 
     def test_raises_not_implemented_when_static_on_pipettor(self, pipettor_instance):
         with pytest.raises(NotImplementedError, match="static"):

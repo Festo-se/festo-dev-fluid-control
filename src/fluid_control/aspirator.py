@@ -13,19 +13,22 @@ festo-applied-motion library.
 
 import logging
 
+from fluid_control.capabilities import AspirateMixin
 from fluid_control.fluid_control import PressureOverLiquidControl
 from applied_motion import Axis
 
 logger = logging.getLogger(__name__)
 
 
-class Aspirator(PressureOverLiquidControl):
+class Aspirator(AspirateMixin, PressureOverLiquidControl):
     """
     Aspirator class for modular aspirating applications.
 
     Driver for a Festo aspirator, e.g. VTOI, VTOE, VTOF.
     Currently, there are hard-coded dependencies on the festo-pgva and festo-vaem drivers
     for their respective hardware modules.
+
+    The ``aspirate`` operation is provided by :class:`~fluid_control.capabilities.AspirateMixin`.
     """
 
     component_type: str = "aspirator"
@@ -65,15 +68,3 @@ class Aspirator(PressureOverLiquidControl):
             pressure_control=pressure_control,
             valve_control=valve_control,
         )
-
-    def aspirate(self, aspirate_dict: dict) -> None:
-        """
-        Aspirate liquid across one or more valve controller channels.
-
-        Args:
-            aspirate_dict (dict): Mapping of channel IDs to channel-operation parameters.
-
-        """
-        logger.info(f"ASPIRATE START: {aspirate_dict}")
-        # TODO: Enable ability to set timing PER CLASS
-        self._handle_liquid(aspirate_dict, process="aspirate")

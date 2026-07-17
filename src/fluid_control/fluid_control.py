@@ -53,6 +53,11 @@ class PressureOverLiquidControl(FluidControl):
 
     component_type: str = ""
     is_static: bool
+    _STATIC_ERROR = (
+        "Axis not configured, this instance of the fluid controller is configured to be static. "
+        "Pass in the attachment axis to the constructor during instantiation or specify the attached "
+        "axis via the configuration file if this was done in error."
+    )
 
     def __init__(
         self,
@@ -460,12 +465,14 @@ class PressureOverLiquidControl(FluidControl):
             if status["Readiness"]:
                 break
 
+    def _require_arm(self) -> None:
+        """Raise if no motion axis is configured for tip/mix operations."""
+        if self.is_static or getattr(self, "mount_arm", None) is None:
+            raise NotImplementedError(self._STATIC_ERROR)
+
     def _disable_xy_axes(self) -> None:
         logger.debug("Disabling target axes")
-        if self.is_static:
-            raise NotImplementedError(
-                "Axis not configured, fluid_control is configured to be static. Pass in the attachment axis to the constructor if this was done in error"
-            )
+        self._require_arm()
 
         for axis in self.disable_axes:
             axis.acknowledge_faults()
@@ -473,10 +480,7 @@ class PressureOverLiquidControl(FluidControl):
 
     def _enable_xy_axes(self) -> None:
         logger.debug("Enabling the axes in action disable list")
-        if self.is_static:
-            raise NotImplementedError(
-                "Axis not configured, fluid_control is configured to be static. Pass in the attachment axis to the constructor if this was done in error"
-            )
+        self._require_arm()
         for axis in self.disable_axes:
             axis.acknowledge_faults()
             axis.enable_powerstage()
