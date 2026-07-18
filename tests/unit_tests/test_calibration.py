@@ -14,6 +14,8 @@ timing-sensitive behaviour.  They verify:
 
 import pytest
 
+from fluid_control.fluid_control import TimingModel, _slope_intercept_func
+
 
 class TestSlopeInterceptFunc:
     def test_returns_callable(self, dispenser):
@@ -159,3 +161,41 @@ class TestValidateOpeningTime:
     def test_negative_time_raises_value_error(self, dispenser):
         with pytest.raises(ValueError):
             dispenser._validate_opening_time(-50, channel=1)
+
+
+class TestTimingModel:
+    """Pure unit tests for the standalone TimingModel (no hardware)."""
+
+    calibration = {
+        "water": {
+            "dispense": {
+                "flow_coefficients": {"1": {"channel_index_coeff": 2.0, "flow_offset": 5.0}},
+                "volume_offset_coefficients": {"1": {"channel_index_coeff": 1.0, "volume_offset": -3.0}},
+            }
+        }
+    }
+
+    def test_slope_intercept_func_is_linear(self):
+        fn = _slope_intercept_func(2.0, 5.0)
+        assert fn(3) == pytest.approx(11.0)
+
+    def test_build_populates_slope_and_intercept_callables(self):
+        model = TimingModel()
+        model.build(self.calibration)
+        entry = model.functions["water"]["dispense"]["1"]
+        assert callable(entry["slope"])
+        assert callable(entry["intercept"])
+        assert entry["slope"](4) == pytest.approx(2.0 * 4 + 5.0)
+        assert entry["intercept"](4) == pytest.approx(1.0 * 4 - 3.0)
+
+    def test_opening_time_for_matches_slope_intercept_math(self):
+        model = TimingModel()
+        model.build(self.calibration)
+        # slope(2)=9, intercept(2)=-1 -> int(9 * 10 + -1) = 89
+        assert model.opening_time_for(1, 10, 2, "water", "dispense") == 89
+
+    def test_empty_calibration_yields_no_functions(self):
+        model = TimingModel()
+        model.build({})
+        assert model.functions == {}
+

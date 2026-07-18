@@ -72,10 +72,71 @@ class FluidControl(ABC):  # noqa: B024
     pass
 
 
-# class MassFlowControl(FluidControl):
-#     """Abstract Flow Control."""
+def _slope_intercept_func(channel_index_coeff: float, offset: float) -> Callable[[float], float]:
+    """Return a linear ``slope * var + offset`` function of the active-channel count."""
 
-#     pass
+    def slope_map(var: float) -> float:
+        return channel_index_coeff * var + offset
+
+    return slope_map
+
+
+class TimingModel:
+    """
+    Builds and evaluates per-channel valve-opening-time functions from a calibration.
+
+    Attributes:
+        functions (dict): Nested mapping
+            ``{liquid_class: {process: {channel: {"slope": fn, "intercept": fn}}}}``
+            of callables parameterised by the active-channel count.
+
+    """
+
+    def __init__(self) -> None:
+        """Initialize an empty timing-function store."""
+        self.functions: dict = {}
+
+    def build(self, calibration: dict) -> None:
+        """
+        Build timing functions for every liquid class and process in a calibration.
+
+        Args:
+            calibration (dict): Calibration mapping
+                ``{liquid_class: {process: {flow_coefficients, volume_offset_coefficients, ...}}}``.
+
+        """
+        for liquid_class, processes in calibration.items():
+            for process, entry in processes.items():
+                coeffs: dict = {}
+                for channel, value in entry["flow_coefficients"].items():
+                    coeffs.setdefault(channel, {})["slope"] = _slope_intercept_func(
+                        value["channel_index_coeff"], value["flow_offset"]
+                    )
+                for channel, value in entry["volume_offset_coefficients"].items():
+                    coeffs.setdefault(channel, {})["intercept"] = _slope_intercept_func(
+                        value["channel_index_coeff"], value["volume_offset"]
+                    )
+                self.functions.setdefault(liquid_class, {})[process] = coeffs
+
+    def opening_time_for(
+        self, channel: int, volume: float, active_channels: int, liquid_class: str, process: str
+    ) -> int:
+        """
+        Compute the valve-opening time in milliseconds for a channel command.
+
+        Args:
+            channel (int): Channel ID.
+            volume (float): Requested volume in microlitres.
+            active_channels (int): Number of active channels driving the model.
+            liquid_class (str): Liquid-class key.
+            process (str): Process key (e.g. ``"dispense"`` or ``"aspirate"``).
+
+        Returns:
+            int: Valve-opening time in milliseconds.
+
+        """
+        coeffs = self.functions[liquid_class][process][str(channel)]
+        return int(coeffs["slope"](active_channels) * volume + coeffs["intercept"](active_channels))
 
 
 class PressureOverLiquidControl(FluidControl):
@@ -170,13 +231,11 @@ class PressureOverLiquidControl(FluidControl):
         for valve in self.active_channels:  # TODO for valve in self.active_channels
             self.valve_control.deselect_valve(valve_id=valve)  # TODO
         self.set_pressures()
-        # self.aspiration_pressure = self.config["calibration"]["aspirate"][
-        #     "pressure"
-        # ]  # TODO: in json config figure out how to do multiple calibrations at different pressures
-        # self.dispense_pressure = self.config["calibration"]["dispense"]["pressure"]  # TODO: ditto
-        self.valve_control_timing_functions = {}
-
-        self._set_all_calibrations()  # TODO: modify config such that multiple pressures can have calibration per process  in the json
+        # TODO: in json config figure out how to do multiple calibrations at different pressures
+        # TODO: modify config such that multiple pressures can have calibration per process  in the json
+        self.timing_model = TimingModel()
+        self.timing_model.build(self.device_config.calibration)
+        self.valve_control_timing_functions = self.timing_model.functions
         logger.info(
             f"{self.component_type} initialization complete — channels={self.active_channels}, "
             f"liquid_classes={list(self.config['calibration'].keys())}, "
@@ -234,87 +293,35 @@ class PressureOverLiquidControl(FluidControl):
             f"Valve controller {name} actual error handling status: {self.valve_control.get_error_handling_status()}"
         )
 
-    def _get_calibration_values(self, liquid_class: str, process: str) -> tuple[dict, dict]:
-        """Get the calibration values from the calibration curves."""
-        flow_offset_vars = self.device_config.flow_coefficients(liquid_class, process)
-        volume_offset_vars = self.device_config.volume_offset_coefficients(liquid_class, process)
-
-        return (flow_offset_vars, volume_offset_vars)
-
-    def set_new_calibration(self, calib: dict):
-        """Set the calibration values from the calibration curves."""
+    def set_new_calibration(self, calib: dict) -> None:
+        """Replace the calibration config and rebuild the valve-timing functions."""
         self.config["calibration"] = calib
-        self._set_all_calibrations()
-
-    def _set_all_calibrations(self) -> None:
-        liquid_classes = list(self.config["calibration"].keys())
-        logger.debug(f"Building timing functions for {len(liquid_classes)} liquid class(es): {liquid_classes}")
-        for liquid_class in liquid_classes:
-            for process in self.config["calibration"][liquid_class].keys():
-                self._set_calibration(liquid_class=liquid_class, process=process)
-        logger.debug("Timing functions built for all liquid classes and processes")
-
-    def _set_calibration(self, liquid_class: str, process: str) -> None:
-        logger.debug(f"Setting calibration: liquid_class={liquid_class!r}, process={process!r}")
-        flow_calib, volume_calib = self._get_calibration_values(liquid_class, process)
-        self._set_timing_functions(flow_calib, volume_calib, liquid_class, process)
-
-    def _set_timing_functions(
-        self, flow_offset_coefficients: dict, volume_offset_coefficients: dict, liquid_class: str, process: str
-    ) -> None:
-        """
-        Translate the slope and offset coefficients into timing functions for each channel.
-
-        Inputs:
-            flow_coefficients: Dictionary of slope coefficients for each channel
-            volume_offset_coefficients: Dictionary of offset coefficients for each channel
-            process: "aspirate" or "dispense"
-        """
-        slope_intercept_coeffs = {}
-        for key, value in flow_offset_coefficients.items():
-            if key not in slope_intercept_coeffs:
-                slope_intercept_coeffs[key] = {}
-            channel_index_coeff = value["channel_index_coeff"]
-            flow_offset = value["flow_offset"]
-            slope_intercept_coeffs[key]["slope"] = self._slope_intercept_func(channel_index_coeff, flow_offset)
-
-        for key, value in volume_offset_coefficients.items():
-            channel_index_coeff = value["channel_index_coeff"]
-            volume_offset = value["volume_offset"]
-            slope_intercept_coeffs[key]["intercept"] = self._slope_intercept_func(channel_index_coeff, volume_offset)
-        if liquid_class not in self.valve_control_timing_functions:
-            self.valve_control_timing_functions[liquid_class] = {}
-        self.valve_control_timing_functions[liquid_class][process] = slope_intercept_coeffs
+        self.timing_model.build(self.device_config.calibration)
 
     def _slope_intercept_func(self, channel_index_coeff: float, volume_offset: float) -> Callable[[float], float]:
-        def slope_map(var: float) -> float:
-            return channel_index_coeff * var + volume_offset
-
-        return slope_map
+        """Return a linear ``slope * var + offset`` function of the active-channel count."""
+        return _slope_intercept_func(channel_index_coeff, volume_offset)
 
     def _set_timing(self, channel: int, volume: float, active_channels: int, liquid_class: str, process: str) -> int:
         """
-        Set the timing for the VAEM valve based on the channel, volume, and number of active channels.
+        Program the VAEM valve opening time for a channel command.
 
-            Inputs:
-                channel: Channel ID (1 or 2)
-                volume: Volume in uL
-                active_channels: Number of active channels (1 to 8 for VAEM)
-                process: "aspirate" or "dispense"
+        Args:
+            channel (int): Channel ID.
+            volume (float): Volume in microlitres.
+            active_channels (int): Number of active channels (1 to 8 for VAEM).
+            liquid_class (str): Liquid-class key.
+            process (str): Process key (e.g. ``"aspirate"`` or ``"dispense"``).
+
+        Returns:
+            int: The programmed valve-opening time in milliseconds.
+
         """
-        logger.debug(
-            f"Setting timing: channel={channel}, volume={volume}uL, active_channels={active_channels}, liquid_class={liquid_class}, process={process}"
-        )
         self.valve_control.select_valve(valve_id=channel)
-        slope = self.valve_control_timing_functions[liquid_class][process][str(channel)]["slope"](active_channels)
-        intercept = self.valve_control_timing_functions[liquid_class][process][str(channel)]["intercept"](
-            active_channels
-        )
-        volume_opening_time = int(slope * volume + intercept)
-        logger.debug(f"Calculated opening time: {volume_opening_time}ms (slope={slope:.4f}, intercept={intercept:.4f})")
-        # volume_opening_time = volume_opening_time / 0.2
-        self.valve_control.set_valve_switching_time(valve_id=channel, opening_time=volume_opening_time)
-        return volume_opening_time
+        opening_time = self.timing_model.opening_time_for(channel, volume, active_channels, liquid_class, process)
+        logger.debug(f"Channel {channel}: opening_time={opening_time}ms")
+        self.valve_control.set_valve_switching_time(valve_id=channel, opening_time=opening_time)
+        return opening_time
 
     def _validate_liquid_class(self, liquid_class: str) -> None:
         current_classes = self.get_liquid_classes()
