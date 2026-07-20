@@ -555,7 +555,7 @@
                         "module_name": "pgva",
                         "driver_name": "PGVA",
                         "actuating_caller": {
-                            "method": "set_actuation_time",
+                            "method": "trigger_actuation_valve",
                             "parameters": [
                                 {
                                     "name": "actuation_time",
