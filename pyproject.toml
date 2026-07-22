@@ -57,6 +57,9 @@ docs = [
     "mkdocstrings[python]>=0.29.1",
     "mkdocs-codeinclude-plugin>=0.2.1",  
 ]
+examples = [
+    "requests", # TODO: Pull example configs down from config library repo
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
