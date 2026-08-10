@@ -340,6 +340,7 @@
                     "control_library": "gantry",
                     "control_module": "Gantry",
                     "control_backend": "fposbapi_client",
+                    "control_class": "FPosBAPIClient"
                     "index": 3
                 },
                 "control_mode": "python",
