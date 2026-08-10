@@ -2,6 +2,8 @@
 
 These examples walk through common dispensing workflows using the `Dispenser` class. Each example builds on the previous one. All examples assume a config file is available — see the [Configuration Guide](../configuration/index.md) for the full schema.
 
+For aspiration, mixing, and tip handling, see the [Pipettor Examples](pipettor.md).
+
 ---
 
 ## 1. Loading a Configuration File

@@ -60,6 +60,21 @@ class OperationResult(NamedTuple):
         code (int): Status code — ``0`` clear, ``1`` error, ``2`` busy.
         message (str): Human-readable description of the outcome.
 
+    Examples:
+        Read the outcome by field name:
+
+        >>> result = pipettor.pickup_tips(duration=0.5)
+        >>> result.message
+        'Tips picked up successfully'
+        >>> result.code
+        0
+
+        The fields are also available positionally for backward compatibility:
+
+        >>> code, message = result
+        >>> result[0], result[1]
+        (0, 'Tips picked up successfully')
+
     """
 
     code: int
@@ -193,6 +208,37 @@ class PressureOverLiquidControl(FluidControl):
                 Opinionated choice that this is a VAEM with some support for single valves controlled
                 by the DO pin on the PGVA at present.
 
+        Examples:
+            Construct from a configuration dict (the library opens the hardware
+            connections for the selected component):
+
+            >>> import json
+            >>> from fluid_control import Dispenser
+            >>> with open("micro-dispenser-config.json") as fh:
+            ...     config = json.load(fh)
+            >>> dispenser = Dispenser(config=config, component_id="micro-dispenser")
+
+            Select one component from a full multi-component instrument
+            configuration; both the pressure (PGVA) and valve (VAEM) controllers
+            are opened internally from that config, with no pre-instantiated
+            hardware objects supplied:
+
+            >>> with open("test-fluid-configs.json") as fh:
+            ...     config = json.load(fh)
+            >>> dispenser = Dispenser(config=config, component_id="micro-dispenser")
+
+            Re-use already-initialised hardware controllers (for example a shared
+            VAEM or an externally regulated pressure source) by passing them in
+            directly, skipping internal hardware initialisation:
+
+            >>> from fluid_control import Dispenser, PressureControl
+            >>> macro = Dispenser(
+            ...     config=config,
+            ...     component_id="macro-dispenser",
+            ...     pressure_control=PressureControl(gantry),
+            ...     valve_control=micro_dispenser.valve_control,
+            ... )
+
         """
         # TODO: If neither config nor pressure/valve control passed in, init error
         if type(self) is PressureOverLiquidControl:
@@ -247,7 +293,14 @@ class PressureOverLiquidControl(FluidControl):
         self.pressures = self.device_config.build_pressures()
 
     def get_liquid_classes(self) -> KeysView[str]:
-        """Return the liquid-class keys present in the current calibration config."""
+        """
+        Return the liquid-class keys present in the current calibration config.
+
+        Examples:
+            >>> list(dispenser.get_liquid_classes())
+            ['water', 'ethylene-glycol10%']
+
+        """
         return self.device_config.liquid_classes()
 
     def _init_pressure_control(self) -> None:
@@ -294,7 +347,27 @@ class PressureOverLiquidControl(FluidControl):
         )
 
     def set_new_calibration(self, calib: dict) -> None:
-        """Replace the calibration config and rebuild the valve-timing functions."""
+        """
+        Replace the calibration config and rebuild the valve-timing functions.
+
+        Args:
+            calib (dict): Calibration mapping in the same format as the config
+                file's ``"calibration"`` key
+                (``{liquid_class: {process: {flow_coefficients, ...}}}``).
+
+        Examples:
+            >>> new_calibration = {
+            ...     "water": {
+            ...         "dispense": {
+            ...             "flow_coefficients": {"1": {"channel_index_coeff": 0.0, "flow_offset": 0.84}},
+            ...             "volume_offset_coefficients": {"1": {"channel_index_coeff": 0.31, "volume_offset": -4.9}},
+            ...             "parameters": {"pressure": 70},
+            ...         }
+            ...     }
+            ... }
+            >>> dispenser.set_new_calibration(new_calibration)
+
+        """
         self.config["calibration"] = calib
         self.timing_model.build(self.device_config.calibration)
 
@@ -410,6 +483,15 @@ class PressureOverLiquidControl(FluidControl):
         Returns:
             list: ``[status_code, message]`` describing the outcome.
 
+        Examples:
+            Open channel 1 for 120 ms at 70 mbar (used to gather calibration data):
+
+            >>> result = dispenser.direct_command(channel_times={1: 120}, pressure=70)
+            >>> result.code
+            0
+            >>> result.message
+            'Direct command executed successfully'
+
         """
         logger.info(f"DIRECT COMMAND START: {channel_times}")
         try:
@@ -456,7 +538,7 @@ class PressureOverLiquidControl(FluidControl):
         Dispense liquid across the given channels.
 
         This default implementation is overridden by
-        :class:`~fluid_control.capabilities.DispenseMixin`. Devices that do not
+        [`DispenseMixin`][fluid_control.capabilities.DispenseMixin]. Devices that do not
         compose that mixin do not support dispensing.
 
         Args:
@@ -473,7 +555,7 @@ class PressureOverLiquidControl(FluidControl):
         Aspirate liquid across the given channels.
 
         This default implementation is overridden by
-        :class:`~fluid_control.capabilities.AspirateMixin`. Devices that do not
+        [`AspirateMixin`][fluid_control.capabilities.AspirateMixin]. Devices that do not
         compose that mixin do not support aspiration.
 
         Args:
@@ -490,7 +572,7 @@ class PressureOverLiquidControl(FluidControl):
         Mix liquid by repeated aspirate/dispense on the given channels.
 
         This default implementation is overridden by
-        :class:`~fluid_control.capabilities.MixMixin`. Devices that do not
+        [`MixMixin`][fluid_control.capabilities.MixMixin]. Devices that do not
         compose that mixin do not support mixing.
 
         Args:
@@ -508,7 +590,7 @@ class PressureOverLiquidControl(FluidControl):
         Pick up tips using the mount arm.
 
         This default implementation is overridden by
-        :class:`~fluid_control.capabilities.TipHandlingMixin`. Devices that do not
+        [`TipHandlingMixin`][fluid_control.capabilities.TipHandlingMixin]. Devices that do not
         compose that mixin do not support tip pickup.
 
         Args:
@@ -528,7 +610,7 @@ class PressureOverLiquidControl(FluidControl):
         Eject tips using pneumatic actuation.
 
         This default implementation is overridden by
-        :class:`~fluid_control.capabilities.TipHandlingMixin`. Devices that do not
+        [`TipHandlingMixin`][fluid_control.capabilities.TipHandlingMixin]. Devices that do not
         compose that mixin do not support tip ejection.
 
         Returns:
@@ -548,7 +630,15 @@ class PressureOverLiquidControl(FluidControl):
         return None
 
     def get_status(self) -> dict:
-        """Return the status of the fluid_control."""
+        """
+        Return the status of the fluid_control.
+
+        Examples:
+            >>> status = dispenser.get_status()
+            >>> status["fluid_control_status"]
+            0
+
+        """
         status = {
             "pressure": self._pressure_status_dispatch(),
             "valve": self.valve_control.get_status(),

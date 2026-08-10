@@ -24,11 +24,28 @@ class Dispenser(DispenseMixin, PressureOverLiquidControl):
     Currently, there are hard-coded dependencies on the festo-pgva and festo-vaem drivers
     for their respective hardware modules.
 
-    The ``dispense`` operation is provided by :class:`~fluid_control.capabilities.DispenseMixin`.
+    The ``dispense`` operation is provided by [`DispenseMixin`][fluid_control.capabilities.DispenseMixin].
 
     Construction is handled entirely by
-    :class:`~fluid_control.fluid_control.PressureOverLiquidControl`; ``component_id``
+    [`PressureOverLiquidControl`][fluid_control.fluid_control.PressureOverLiquidControl]; ``component_id``
     defaults to ``"dispenser_1"`` (derived from ``component_type``).
+
+    Examples:
+        Load an instrument configuration and dispense 25 uL of water on channel 1:
+
+        >>> import json
+        >>> from fluid_control import Dispenser
+        >>> with open("micro-dispenser-config.json") as fh:
+        ...     config = json.load(fh)
+        >>> dispenser = Dispenser(config=config, component_id="micro-dispenser")
+        >>> dispenser.dispense({1: {"volume": 25.0, "liquid_class": "water"}})
+
+        Use as a context manager to guarantee the instrument is returned to a
+        safe state on exit, even if an exception is raised:
+
+        >>> with Dispenser(config=config, component_id="micro-dispenser") as dispenser:
+        ...     dispenser.dispense({1: {"volume": 30.0, "liquid_class": "water"}})
+
     """
 
     component_type: str = "dispenser"

@@ -10,7 +10,6 @@ import logging
 
 import pprint
 
-from pgva import PGVA, PGVATCPConfig
 
 from fluid_control import Dispenser, PressureControl
 from applied_motion import Gantry

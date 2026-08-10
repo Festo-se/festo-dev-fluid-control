@@ -5,7 +5,7 @@ Capability mixins for pressure-over-liquid fluid-handling devices.
 
 Each mixin contributes a single public operation (or a cohesive group of
 operations) and delegates into the engine primitives provided by
-:class:`~fluid_control.fluid_control.PressureOverLiquidControl` (e.g.
+[`PressureOverLiquidControl`][fluid_control.fluid_control.PressureOverLiquidControl] (e.g.
 ``_handle_liquid``, ``_require_arm``, ``_disable_lateral_axes``). Mixins are pure
 ``object`` subclasses at runtime and are never instantiated directly; concrete
 devices compose them onto the engine.
@@ -48,6 +48,22 @@ class DispenseMixin(_EngineBase):
 
         Args:
             dispense_dict (dict): Mapping of channel IDs to channel-operation parameters.
+                Each value is a [`ChannelCommand`][fluid_control.fluid_control.ChannelCommand],
+                i.e. ``{"volume": <uL>, "liquid_class": <str>}``.
+
+        Examples:
+            Dispense 25 uL of water on channel 1:
+
+            >>> dispenser.dispense({1: {"volume": 25.0, "liquid_class": "water"}})
+
+            Dispense on two channels in parallel (armed together, fired once):
+
+            >>> dispenser.dispense(
+            ...     {
+            ...         1: {"volume": 10.0, "liquid_class": "water"},
+            ...         2: {"volume": 15.0, "liquid_class": "water"},
+            ...     }
+            ... )
 
         """
         logger.info(f"DISPENSE START: {dispense_dict}")
@@ -64,6 +80,13 @@ class AspirateMixin(_EngineBase):
 
         Args:
             aspirate_dict (dict): Mapping of channel IDs to channel-operation parameters.
+                Each value is a [`ChannelCommand`][fluid_control.fluid_control.ChannelCommand],
+                i.e. ``{"volume": <uL>, "liquid_class": <str>}``.
+
+        Examples:
+            Aspirate 50 uL of water on channel 1:
+
+            >>> pipettor.aspirate({1: {"volume": 50.0, "liquid_class": "water"}})
 
         """
         logger.info(f"ASPIRATE START: {aspirate_dict}")
@@ -82,6 +105,11 @@ class MixMixin(_EngineBase):
             mix_dict (dict): Mapping of channel IDs to channel-operation parameters.
             cycles (int): Number of aspirate/dispense cycles to execute.
 
+        Examples:
+            Mix 20 uL up and down for 3 cycles on channel 1:
+
+            >>> pipettor.mix({1: {"volume": 20.0, "liquid_class": "water"}}, cycles=3)
+
         """
         logger.info(f"MIX START: {mix_dict}")
 
@@ -97,7 +125,23 @@ class TipHandlingMixin(_EngineBase):
     """Adds tip pickup and ejection to a device that has a motion axis."""
 
     def eject_tips(self) -> OperationResult:
-        """Eject tips from the fluid control module."""
+        """
+        Eject tips from the fluid control module.
+
+        Requires a mounted (non-static) device with a configured motion axis.
+
+        Returns:
+            OperationResult: ``(code, message)`` describing the outcome, where
+            ``code`` is ``0`` (clear), ``1`` (error), or ``2`` (busy).
+
+        Examples:
+            >>> result = pipettor.eject_tips()
+            >>> result.code
+            0
+            >>> result.message
+            'Tips ejected successfully'
+
+        """
         # TODO: How to consider static, mechanical, deck-based, fixed-point ejection mode
         # Make optional?
         # class Ejector
@@ -171,8 +215,21 @@ class TipHandlingMixin(_EngineBase):
         """
         Pick up tips with the fluid_control.
 
+        Requires a mounted (non-static) device with a configured motion axis.
+
         Args:
             duration (float): Duration in seconds of each downward jog toward the tips.
+
+        Returns:
+            OperationResult: ``(code, message)`` describing the outcome, where
+            ``code`` is ``0`` (clear), ``1`` (error), or ``2`` (busy).
+
+        Examples:
+            >>> result = pipettor.pickup_tips(duration=0.5)
+            >>> result.code
+            0
+            >>> result.message
+            'Tips picked up successfully'
 
         """
         logger.info(f"PICKUP TIPS START: duration={duration}")

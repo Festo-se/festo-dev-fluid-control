@@ -1,4 +1,4 @@
-"""Unit tests for :class:`fluid_control.device_config.DeviceConfig`.
+"""Unit tests for [`DeviceConfig`][fluid_control.device_config.DeviceConfig].
 
 Covers component resolution (wrapped and unwrapped configs), derived channel
 values, interface parsing, valve error-handling aggregation, and the live

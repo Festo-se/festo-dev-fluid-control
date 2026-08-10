@@ -18,16 +18,29 @@ class Pipettor(AspirateMixin, DispenseMixin, MixMixin, TipHandlingMixin, Pressur
     Festo multi-channel pressure-over-liquid pipettor.
 
     Composes the full set of fluid-handling capabilities onto the
-    :class:`~fluid_control.fluid_control.PressureOverLiquidControl` engine:
+    [`PressureOverLiquidControl`][fluid_control.fluid_control.PressureOverLiquidControl] engine:
 
-    - ``aspirate`` from :class:`~fluid_control.capabilities.AspirateMixin`
-    - ``dispense`` from :class:`~fluid_control.capabilities.DispenseMixin`
-    - ``mix`` from :class:`~fluid_control.capabilities.MixMixin`
-    - ``pickup_tips`` / ``eject_tips`` from :class:`~fluid_control.capabilities.TipHandlingMixin`
+    - ``aspirate`` from [`AspirateMixin`][fluid_control.capabilities.AspirateMixin]
+    - ``dispense`` from [`DispenseMixin`][fluid_control.capabilities.DispenseMixin]
+    - ``mix`` from [`MixMixin`][fluid_control.capabilities.MixMixin]
+    - ``pickup_tips`` / ``eject_tips`` from [`TipHandlingMixin`][fluid_control.capabilities.TipHandlingMixin]
 
     Construction is handled entirely by
-    :class:`~fluid_control.fluid_control.PressureOverLiquidControl`; ``component_id``
+    [`PressureOverLiquidControl`][fluid_control.fluid_control.PressureOverLiquidControl]; ``component_id``
     defaults to ``"pipettor_1"`` (derived from ``component_type``).
+
+    Examples:
+        Aspirate, mix, then dispense on a mounted pipettor:
+
+        >>> import json
+        >>> from fluid_control import Pipettor
+        >>> with open("pipettor-config.json") as fh:
+        ...     config = json.load(fh)
+        >>> pipettor = Pipettor(config=config, component_id="pipettor")
+        >>> pipettor.aspirate({1: {"volume": 50.0, "liquid_class": "water"}})
+        >>> pipettor.mix({1: {"volume": 20.0, "liquid_class": "water"}}, cycles=3)
+        >>> pipettor.dispense({1: {"volume": 50.0, "liquid_class": "water"}})
+
     """
 
     component_type: str = "pipettor"

@@ -23,11 +23,22 @@ class Aspirator(AspirateMixin, PressureOverLiquidControl):
     Currently, there are hard-coded dependencies on the festo-pgva and festo-vaem drivers
     for their respective hardware modules.
 
-    The ``aspirate`` operation is provided by :class:`~fluid_control.capabilities.AspirateMixin`.
+    The ``aspirate`` operation is provided by [`AspirateMixin`][fluid_control.capabilities.AspirateMixin].
 
     Construction is handled entirely by
-    :class:`~fluid_control.fluid_control.PressureOverLiquidControl`; ``component_id``
+    [`PressureOverLiquidControl`][fluid_control.fluid_control.PressureOverLiquidControl]; ``component_id``
     defaults to ``"aspirator_1"`` (derived from ``component_type``).
+
+    Examples:
+        Aspirate 40 uL of water on channel 1:
+
+        >>> import json
+        >>> from fluid_control import Aspirator
+        >>> with open("aspirator-config.json") as fh:
+        ...     config = json.load(fh)
+        >>> aspirator = Aspirator(config=config, component_id="aspirator")
+        >>> aspirator.aspirate({1: {"volume": 40.0, "liquid_class": "water"}})
+
     """
 
     component_type: str = "aspirator"

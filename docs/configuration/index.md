@@ -22,11 +22,11 @@
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `spec_version` | `string` | Config schema version. Current version is `"3.0"`. |
-| `system_config` | `object` | System-level metadata (reserved for future use). |
-| `component_config.components` | `object` | Map of `component_id` → component definition. |
+| Field                           | Type       | Description                                         |
+| ------------------------------- | ---------- | --------------------------------------------------- |
+| `spec_version`                | `string` | Config schema version. Current version is`"3.0"`. |
+| `system_config`               | `object` | System-level metadata (reserved for future use).    |
+| `component_config.components` | `object` | Map of`component_id` → component definition.     |
 
 When you construct a `Dispenser`, the `component_id` argument selects the matching key from `component_config.components`.
 
@@ -46,13 +46,13 @@ When you construct a `Dispenser`, the `component_id` argument selects the matchi
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `component_class` | `string` | Must be `"dispenser"` for `Dispenser` instances. |
-| `uuid` | `string` | Unique identifier for this component. Used for auditing. |
-| `type` | `string` | Must be `"pressure-over-liquid"`. |
-| `fluid-channel-count` | `int` | Total number of fluid channels on the head. |
-| `mounted` | `bool` | `true` if the head is mounted on a motion axis. |
+| Field                   | Type       | Description                                              |
+| ----------------------- | ---------- | -------------------------------------------------------- |
+| `component_class`     | `string` | Must be`"dispenser"` for `Dispenser` instances.      |
+| `uuid`                | `string` | Unique identifier for this component. Used for auditing. |
+| `type`                | `string` | Must be`"pressure-over-liquid"`.                       |
+| `fluid-channel-count` | `int`    | Total number of fluid channels on the head.              |
+| `mounted`             | `bool`   | `true` if the head is mounted on a motion axis.        |
 
 ### Mount Axis (Mounted Heads Only)
 
@@ -110,13 +110,13 @@ Used for the micro-dispenser configuration. The library constructs a `PGVA` inst
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `passed-by-init` | `bool` | `false` — the library initialises the PGVA from this config block. |
-| `name` | `string` | Must contain `"pgva"`. Used to select the PGVA driver. |
-| `uuid` | `int` | Modbus unit ID for the PGVA. |
-| `interface.ip` | `string` | IP address of the PGVA on the instrument network. |
-| `interface.port` | `int` | TCP port (typically `502` for Modbus). |
+| Field              | Type       | Description                                                           |
+| ------------------ | ---------- | --------------------------------------------------------------------- |
+| `passed-by-init` | `bool`   | `false` — the library initialises the PGVA from this config block. |
+| `name`           | `string` | Must contain`"pgva"`. Used to select the PGVA driver.               |
+| `uuid`           | `int`    | Modbus unit ID for the PGVA.                                          |
+| `interface.ip`   | `string` | IP address of the PGVA on the instrument network.                     |
+| `interface.port` | `int`    | TCP port (typically`502` for Modbus).                               |
 
 #### External Pressure Regulator (e.g. VEAB via Gantry)
 
@@ -132,10 +132,10 @@ Used for the macro-dispenser configuration where pressure is controlled through 
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `passed-by-init` | `bool` | `true` — the caller provides a `PressureControl` object at construction time. |
-| `name` | `string` | Informational; not used for driver selection when `passed-by-init` is `true`. |
+| Field              | Type       | Description                                                                        |
+| ------------------ | ---------- | ---------------------------------------------------------------------------------- |
+| `passed-by-init` | `bool`   | `true` — the caller provides a `PressureControl` object at construction time. |
+| `name`           | `string` | Informational; not used for driver selection when`passed-by-init` is `true`.   |
 
 ### Valve Controller (`"valve"`)
 
@@ -172,15 +172,15 @@ Describes the VAEM valve electronics module.
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `passed-by-init` | `bool` | `false` — library constructs a VAEM; `true` — pass an existing VAEM in via `valve_control`. |
-| `name` | `string` | Must contain `"vaem"`. |
-| `active_valve_terminals` | `int[]` | List of VAEM terminal indices that are physically connected and active. |
-| `valve_type` | `object` | Per-terminal valve spec. The `"error-handling"` field enables the VAEM hardware error-handling feature per valve. |
-| `uuid` | `int` | Modbus unit ID for the VAEM. |
-| `interface.ip` | `string` | IP address of the VAEM. |
-| `interface.port` | `int` | TCP port (typically `502`). |
+| Field                      | Type       | Description                                                                                                        |
+| -------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| `passed-by-init`         | `bool`   | `false` — library constructs a VAEM; `true` — pass an existing VAEM in via `valve_control`.                |
+| `name`                   | `string` | Must contain`"vaem"`.                                                                                            |
+| `active_valve_terminals` | `int[]`  | List of VAEM terminal indices that are physically connected and active.                                            |
+| `valve_type`             | `object` | Per-terminal valve spec. The`"error-handling"` field enables the VAEM hardware error-handling feature per valve. |
+| `uuid`                   | `int`    | Modbus unit ID for the VAEM.                                                                                       |
+| `interface.ip`           | `string` | IP address of the VAEM.                                                                                            |
+| `interface.port`         | `int`    | TCP port (typically`502`).                                                                                       |
 
 ---
 
@@ -216,21 +216,21 @@ The calibration block maps liquid classes to process-specific (dispense/aspirate
 
 Any string key is valid for `<liquid_class>`. Examples from the reference configurations:
 
-| Liquid Class Key | Description |
-|---|---|
-| `"water"` | Aqueous buffer, low viscosity baseline |
+| Liquid Class Key         | Description                                       |
+| ------------------------ | ------------------------------------------------- |
+| `"water"`              | Aqueous buffer, low viscosity baseline            |
 | `"ethylene-glycol10%"` | 10 % ethylene glycol, slightly elevated viscosity |
-| `"third-liquid-class"` | Placeholder for an additional fluid |
+| `"third-liquid-class"` | Placeholder for an additional fluid               |
 
 !!! tip
     The liquid class string in the config must exactly match the `liquid_class` key you pass to `dispense()` at runtime.
 
 ### Processes
 
-| Process Key | Used By |
-|---|---|
+| Process Key    | Used By                     |
+| -------------- | --------------------------- |
 | `"dispense"` | `Dispenser`, `Pipettor` |
-| `"aspirate"` | `Pipettor` only |
+| `"aspirate"` | `Pipettor` only           |
 
 `Dispenser` will raise `NotImplementedError` if `aspirate` is called.
 
@@ -238,7 +238,9 @@ Any string key is valid for `<liquid_class>`. Examples from the reference config
 
 The library uses a two-term linear model to translate volume (µL) to valve opening time (ms):
 
-$$t_{open} = m(n) \cdot V + b(n)$$
+$$
+t_{open} = m(n) \cdot V + b(n)
+$$
 
 Where:
 
@@ -247,13 +249,13 @@ Where:
 - $m(n)$ is the slope (ms/µL), interpolated from `channel_index_coeff` and `flow_offset`
 - $b(n)$ is the intercept (ms), interpolated from `channel_index_coeff` and `volume_offset`
 
-| Coefficient Field | Description |
-|---|---|
-| `flow_coefficients[ch].channel_index_coeff` | Slope of slope vs. active-channel count |
-| `flow_coefficients[ch].flow_offset` | Slope at single-channel (intercept of the slope line) |
-| `volume_offset_coefficients[ch].channel_index_coeff` | Slope of intercept vs. active-channel count |
-| `volume_offset_coefficients[ch].volume_offset` | Intercept at single-channel |
-| `parameters.pressure` | PGVA output pressure in mbar for this liquid class and process |
+| Coefficient Field                                      | Description                                                    |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| `flow_coefficients[ch].channel_index_coeff`          | Slope of slope vs. active-channel count                        |
+| `flow_coefficients[ch].flow_offset`                  | Slope at single-channel (intercept of the slope line)          |
+| `volume_offset_coefficients[ch].channel_index_coeff` | Slope of intercept vs. active-channel count                    |
+| `volume_offset_coefficients[ch].volume_offset`       | Intercept at single-channel                                    |
+| `parameters.pressure`                                | PGVA output pressure in mbar for this liquid class and process |
 
 ### Channel IDs in Calibration
 

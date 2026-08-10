@@ -5,7 +5,7 @@ Typed loader for fluid-control device configuration.
 
 Parses a raw instrument-configuration mapping once and exposes the
 component-scoped values consumed by
-:class:`~fluid_control.fluid_control.PressureOverLiquidControl` as typed
+[`PressureOverLiquidControl`][fluid_control.fluid_control.PressureOverLiquidControl] as typed
 attributes, keeping configuration-parsing concerns out of the engine.
 """
 
