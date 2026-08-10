@@ -14,7 +14,7 @@ This subpackage is self-contained by design so it can later be lifted verbatim
 into a standalone ``festo-dev-cli-compose`` distribution shared across packages.
 """
 
-from fluid_control.cli.compose.core import (
+from applied_motion.cli.compose import (
     Command,
     CommandError,
     CommandGroup,

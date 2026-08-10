@@ -56,9 +56,9 @@ from prompt_toolkit.completion import WordCompleter
 from rich.console import Console
 
 from applied_motion.applied_motion import Gantry
+from applied_motion.cli.compose.repl import run_repl as _run_group_repl
 from fluid_control import Dispenser, Pipettor
 from fluid_control.cli.commands import build_group
-from fluid_control.cli.compose.repl import run_repl as _run_group_repl
 from fluid_control.cli.session import FluidControlSession, _TOP_LEVEL_CMDS
 from fluid_control.fluid_control import PressureOverLiquidControl
 

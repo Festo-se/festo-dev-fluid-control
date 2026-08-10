@@ -20,7 +20,7 @@ import functools
 import logging
 from collections.abc import Sequence
 
-from fluid_control.cli.compose.core import Command, CommandGroup, UsageError
+from applied_motion.cli.compose.core import Command, CommandGroup, UsageError
 from fluid_control.cli.render import console, location_table, print_result, status_table
 from fluid_control.cli.session import FluidControlSession, _DEFAULT_VELOCITY
 
