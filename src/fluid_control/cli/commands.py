@@ -21,8 +21,17 @@ import logging
 from collections.abc import Sequence
 
 from applied_motion.cli.compose.core import Command, CommandGroup, UsageError
+from fluid_control.cli.logging_utils import set_runtime_log_level
 from fluid_control.cli.render import console, location_table, print_result, status_table
 from fluid_control.cli.session import FluidControlSession, _DEFAULT_VELOCITY
+
+
+def _run_applied_motion_cli(teach_session, gantry) -> None:
+    """Launch the applied-motion teach-in REPL for the supplied gantry."""
+    from applied_motion.cli.cli import run_repl as _run_repl
+
+    _run_repl(teach_session, gantry)
+
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +158,7 @@ def _cmd_pressure(session: FluidControlSession, args: Sequence[str]) -> None:
         raise UsageError("Usage: pressure <mbar>")
     pressure = int(args[0])
     session.set_pressure(pressure)
-    console.print(f"[green]✓[/] Pressure set to [bold]{pressure}[/] mbar")
+    console.print(f"[festo.ok]✓[/] Pressure set to [bold]{pressure}[/] mbar")
 
 
 def _cmd_classes(session: FluidControlSession, args: Sequence[str]) -> None:
@@ -164,9 +173,9 @@ def _cmd_classes(session: FluidControlSession, args: Sequence[str]) -> None:
     classes = session.get_liquid_classes()
     if classes:
         for lc in classes:
-            console.print(f"  [cyan]{lc}[/]")
+            console.print(f"  [festo.ok]{lc}[/]")
     else:
-        console.print("[dim]No liquid classes configured.[/]")
+        console.print("[festo.muted]No liquid classes configured.[/]")
 
 
 def _cmd_channels(session: FluidControlSession, args: Sequence[str]) -> None:
@@ -178,7 +187,7 @@ def _cmd_channels(session: FluidControlSession, args: Sequence[str]) -> None:
         args: Unused argument tokens.
 
     """
-    console.print(f"  Active channels: [cyan]{session.get_channels()}[/]")
+    console.print(f"  Active channels: [festo.ok]{session.get_channels()}[/]")
 
 
 def _cmd_status(session: FluidControlSession, args: Sequence[str]) -> None:
@@ -191,6 +200,29 @@ def _cmd_status(session: FluidControlSession, args: Sequence[str]) -> None:
 
     """
     console.print(status_table(session.get_status()))
+
+
+def _cmd_loglevel(session: FluidControlSession, args: Sequence[str]) -> None:
+    """Handle ``loglevel [LEVEL]`` — show or change current process log level.
+
+    Args:
+        session: The bound fluid-control session.
+        args: Optional level token following ``loglevel``.
+
+    """
+    del session
+    console.print(f"[festo.ok]✓[/] {set_runtime_log_level(args)}")
+
+
+def _cmd_applied_motion(session: FluidControlSession, args: Sequence[str]) -> None:
+    """Handle ``applied-motion`` — launch the applied-motion teach-in REPL."""
+    # TODO: how to make this pull up the session info and required args from subsidiary library, and start?
+    if session.gantry is None:
+        raise UsageError("applied-motion requires a configured gantry")
+
+    from applied_motion.cli.session import MotionSession
+
+    _run_applied_motion_cli(MotionSession(session.gantry), session.gantry)
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +310,7 @@ def _cmd_home(session: FluidControlSession, args: Sequence[str]) -> None:
 
     """
     session.home()
-    console.print("[green]✓[/] All axes homed.")
+    console.print("[festo.ok]✓[/] All axes homed.")
 
 
 def _cmd_enable(session: FluidControlSession, args: Sequence[str]) -> None:
@@ -291,7 +323,7 @@ def _cmd_enable(session: FluidControlSession, args: Sequence[str]) -> None:
 
     """
     session.enable_axes()
-    console.print("[green]✓[/] Powerstage enabled.")
+    console.print("[festo.ok]✓[/] Powerstage enabled.")
 
 
 def _cmd_disable(session: FluidControlSession, args: Sequence[str]) -> None:
@@ -304,7 +336,7 @@ def _cmd_disable(session: FluidControlSession, args: Sequence[str]) -> None:
 
     """
     session.disable_axes()
-    console.print("[green]✓[/] Powerstage disabled.")
+    console.print("[festo.ok]✓[/] Powerstage disabled.")
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +471,22 @@ def build_group(session: FluidControlSession) -> CommandGroup:
     group.add_command(Command("classes", functools.partial(_cmd_classes, session), "classes", "List liquid classes"))
     group.add_command(Command("channels", functools.partial(_cmd_channels, session), "channels", "List valve channels"))
     group.add_command(Command("status", functools.partial(_cmd_status, session), "status", "Show status"))
+    group.add_command(
+        Command(
+            "loglevel",
+            functools.partial(_cmd_loglevel, session),
+            "loglevel [OFF|DEBUG|INFO|WARNING|ERROR|CRITICAL]",
+            "Show or change current log level",
+        )
+    )
+    group.add_command(
+        Command(
+            "applied-motion",
+            functools.partial(_cmd_applied_motion, session),
+            "applied-motion",
+            "Launch the applied-motion teach-in CLI",
+        )
+    )
     group.add_command(Command("pickup", functools.partial(_cmd_pickup, session), "pickup <duration_s>", "Pick up tips"))
     group.add_command(Command("eject", functools.partial(_cmd_eject, session), "eject", "Eject tips"))
 

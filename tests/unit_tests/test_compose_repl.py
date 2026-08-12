@@ -79,3 +79,38 @@ class TestNamespaceCompleter:
         completer = NamespaceCompleter(_sample_root())
         completions = [c.text for c in completer.get_completions(Document("status "), None)]
         assert completions == []
+
+
+class TestRunReplOutputPatching:
+    def test_run_repl_uses_patch_stdout(self, monkeypatch):
+        from applied_motion.cli.compose import repl as repl_module
+        from fluid_control.cli.compose.repl import run_repl
+
+        patch_calls: list[str] = []
+
+        class _PatchStdoutStub:
+            def __enter__(self):
+                patch_calls.append("enter")
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                patch_calls.append("exit")
+                del exc_type, exc, tb
+                return False
+
+        class _PromptSessionStub:
+            def __init__(self, **kwargs):
+                del kwargs
+
+            def prompt(self, prompt_text: str) -> str:
+                del prompt_text
+                return "quit"
+
+        root = _sample_root()
+        monkeypatch.setattr(repl_module, "PromptSession", _PromptSessionStub)
+        monkeypatch.setattr(repl_module, "patch_stdout", lambda raw=True: _PatchStdoutStub())
+        monkeypatch.setattr(repl_module.festo_console(), "print", lambda *args, **kwargs: None)
+
+        run_repl(root, intro=False)
+
+        assert patch_calls == ["enter", "exit"]

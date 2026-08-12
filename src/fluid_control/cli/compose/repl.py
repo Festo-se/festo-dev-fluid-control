@@ -16,6 +16,6 @@ namespaces.  All command output is produced by the individual command handlers;
 the driver only renders help and dispatch errors.
 """
 
-from applied_motion.cli.compose.repl import *  # noqa: F401,F403
+from applied_motion.cli.compose.repl import NamespaceCompleter, render_help, run_repl
 
 __all__ = ["NamespaceCompleter", "render_help", "run_repl"]

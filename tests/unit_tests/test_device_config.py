@@ -32,6 +32,40 @@ class TestResolution:
         with pytest.raises(KeyError):
             DeviceConfig(dispenser_config, "does_not_exist")
 
+    def test_missing_components_mapping_raises_key_error(self):
+        with pytest.raises(KeyError):
+            DeviceConfig({}, "dispenser_1")
+
+    def test_missing_control_modules_raises_key_error(self, dispenser_config):
+        component = dispenser_config["components"]["dispenser_1"]
+        component.pop("control_modules")
+        with pytest.raises(KeyError):
+            DeviceConfig(dispenser_config, "dispenser_1")
+
+    def test_missing_pressure_module_raises_key_error(self, dispenser_config):
+        modules = dispenser_config["components"]["dispenser_1"]["control_modules"]
+        modules.pop("pressure")
+        with pytest.raises(KeyError):
+            DeviceConfig(dispenser_config, "dispenser_1")
+
+    def test_missing_valve_module_raises_key_error(self, dispenser_config):
+        modules = dispenser_config["components"]["dispenser_1"]["control_modules"]
+        modules.pop("valve")
+        with pytest.raises(KeyError):
+            DeviceConfig(dispenser_config, "dispenser_1")
+
+    def test_missing_active_valve_terminals_raises_key_error(self, dispenser_config):
+        valve = dispenser_config["components"]["dispenser_1"]["control_modules"]["valve"]
+        valve.pop("active_valve_terminals")
+        with pytest.raises(KeyError):
+            DeviceConfig(dispenser_config, "dispenser_1")
+
+    def test_missing_fluid_channel_count_raises_key_error(self, dispenser_config):
+        component = dispenser_config["components"]["dispenser_1"]
+        component.pop("fluid-channel-count")
+        with pytest.raises(KeyError):
+            DeviceConfig(dispenser_config, "dispenser_1")
+
 
 class TestDerivedChannels:
     def test_active_channels(self, device_config):
@@ -114,6 +148,13 @@ class TestCalibrationAccessors:
         coeffs = device_config.volume_offset_coefficients("water", "dispense")
         assert set(coeffs.keys()) == {"1", "2"}
         assert "volume_offset" in coeffs["1"]
+
+    def test_missing_calibration_raises_key_error_on_access(self, dispenser_config):
+        component = dispenser_config["components"]["dispenser_1"]
+        component.pop("calibration")
+        cfg = DeviceConfig(dispenser_config, "dispenser_1")
+        with pytest.raises(KeyError):
+            _ = cfg.calibration
 
 
 def test_interface_config_fields():

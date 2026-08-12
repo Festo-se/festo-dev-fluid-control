@@ -7,6 +7,7 @@ tested when ``prompt_toolkit`` and ``rich`` are importable.
 """
 
 from collections import deque
+import logging
 from unittest.mock import MagicMock
 import importlib
 import importlib.util
@@ -14,7 +15,7 @@ import importlib.util
 import pytest
 
 from fluid_control.cli.session import FluidControlSession, _TOP_LEVEL_CMDS
-from fluid_control import Dispenser, Pipettor
+from fluid_control import Dispenser
 from fluid_control.fluid_control import OperationResult
 
 
@@ -37,6 +38,9 @@ def _make_mock_gantry(axis_names: list[str] | None = None) -> MagicMock:
         axis_names = ["X", "Y", "Z"]
     gantry = MagicMock()
     gantry.axes = {name: MagicMock() for name in axis_names}
+    for axis in gantry.axes.values():
+        axis.min_position = float("-inf")
+        axis.max_position = float("inf")
     gantry.get_location.return_value = {name: 0.0 for name in axis_names}
     return gantry
 
@@ -363,6 +367,216 @@ class TestGetChannels:
 # ---------------------------------------------------------------------------
 
 
+class TestDiscoverComponentGantryConfig:
+    def test_configure_logging_disables_logging_when_off(self, monkeypatch):
+        from fluid_control.cli import logging_utils
+
+        disable_calls: list[int] = []
+        basic_config_called = {"value": False}
+
+        monkeypatch.setattr(logging_utils.logging, "disable", disable_calls.append)
+        monkeypatch.setattr(
+            logging_utils.logging,
+            "basicConfig",
+            lambda **kwargs: basic_config_called.__setitem__("value", True),
+        )
+
+        assert logging_utils.configure_logging("OFF") == "OFF"
+
+        assert disable_calls == [logging_utils.logging.CRITICAL]
+        assert basic_config_called["value"] is False
+
+    def test_configure_logging_enables_requested_level(self, monkeypatch):
+        from fluid_control.cli import logging_utils
+
+        disable_calls: list[int] = []
+        basic_config_calls: list[dict[str, object]] = []
+
+        monkeypatch.setattr(logging_utils.logging, "disable", disable_calls.append)
+        monkeypatch.setattr(logging_utils.logging, "basicConfig", lambda **kwargs: basic_config_calls.append(kwargs))
+
+        assert logging_utils.configure_logging("DEBUG") == "DEBUG"
+
+        assert disable_calls == [logging_utils.logging.NOTSET]
+        assert basic_config_calls == [
+            {
+                "level": logging_utils.logging.DEBUG,
+                "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                "force": True,
+                "stream": logging_utils.sys.stdout,
+            }
+        ]
+
+    def test_configure_logging_inherit_does_not_reconfigure(self, monkeypatch):
+        from fluid_control.cli import logging_utils
+
+        disable_calls: list[int] = []
+        basic_config_calls: list[dict[str, object]] = []
+
+        monkeypatch.setattr(logging_utils, "current_log_level_name", lambda: "INFO")
+        monkeypatch.setattr(logging_utils.logging, "disable", disable_calls.append)
+        monkeypatch.setattr(logging_utils.logging, "basicConfig", lambda **kwargs: basic_config_calls.append(kwargs))
+
+        assert logging_utils.configure_logging("INHERIT") == "INFO"
+
+        assert disable_calls == []
+        assert basic_config_calls == []
+
+    def test_runtime_log_level_command_sets_requested_level(self, monkeypatch):
+        from fluid_control.cli import logging_utils
+
+        monkeypatch.setattr(logging_utils, "configure_logging", lambda level: level)
+
+        assert logging_utils.set_runtime_log_level(["error"]) == "Log level set to ERROR"
+
+    def test_runtime_log_level_command_reports_current_level(self, monkeypatch):
+        from fluid_control.cli import logging_utils
+
+        monkeypatch.setattr(logging_utils, "current_log_level_name", lambda: "WARNING")
+
+        assert logging_utils.set_runtime_log_level([]) == "Current log level: WARNING"
+
+    def test_configure_logging_forces_pymodbus_logger_to_info(self, monkeypatch):
+        from fluid_control.cli import logging_utils
+
+        monkeypatch.setattr(logging_utils.logging, "disable", lambda _: None)
+        monkeypatch.setattr(logging_utils.logging, "basicConfig", lambda **kwargs: None)
+        monkeypatch.setattr(logging_utils, "_PYMODBUS_LOGGER_NAME", "pymodbus.fluid-control.test")
+        monkeypatch.setattr(logging_utils.logging.root.manager, "disable", logging.NOTSET)
+
+        pymodbus_logger = logging.getLogger("pymodbus.fluid-control.test")
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        pymodbus_logger.handlers = [handler]
+        pymodbus_logger.setLevel(logging.DEBUG)
+
+        assert logging_utils.configure_logging("DEBUG") == "DEBUG"
+        assert pymodbus_logger.level == logging.INFO
+        assert pymodbus_logger.handlers[0].level == logging.INFO
+
+        pymodbus_logger.handlers.clear()
+
+    def test_configure_logging_off_disables_pymodbus_logger(self, monkeypatch):
+        from fluid_control.cli import logging_utils
+
+        monkeypatch.setattr(logging_utils, "_PYMODBUS_LOGGER_NAME", "pymodbus.fluid-control.off-test")
+        monkeypatch.setattr(logging_utils.logging.root.manager, "disable", logging.NOTSET)
+
+        pymodbus_logger = logging.getLogger("pymodbus.fluid-control.off-test")
+        pymodbus_logger.disabled = False
+
+        assert logging_utils.configure_logging("OFF") == "OFF"
+        assert pymodbus_logger.disabled is True
+        logging.disable(logging.NOTSET)
+
+    def test_discovers_gantry_from_component_config(self):
+        from fluid_control.cli.cli import _discover_component_gantry_config
+
+        config = {
+            "components": {
+                "micro-dispenser": {
+                    "component_class": "dispenser",
+                    "mount_gantry": {"name": "gantry_1"},
+                    "mount_axis": "Z",
+                },
+                "gantry_1": {"component_class": "gantry"},
+            }
+        }
+
+        gantry_config, gantry_name, mount_axis_name = _discover_component_gantry_config(config, "micro-dispenser")
+        assert gantry_config == {"component_class": "gantry"}
+        assert gantry_name == "gantry_1"
+        assert mount_axis_name == "Z"
+
+    def test_wraps_discovered_gantry_component_for_bootstrap(self):
+        from fluid_control.cli.cli import _wrap_gantry_config_for_bootstrap
+
+        gantry_component = {
+            "component_class": "gantry",
+            "backend": "fposbapi",
+            "axes": {"Z": {"name": "Z", "index": 1}},
+        }
+
+        assert _wrap_gantry_config_for_bootstrap(gantry_component, "gantry_1") == {
+            "components": {"gantry_1": gantry_component}
+        }
+
+    def test_falls_back_to_sibling_gantry_component_when_mount_gantry_missing(self):
+        from fluid_control.cli.cli import _discover_component_gantry_config
+
+        config = {
+            "components": {
+                "micro-dispenser": {"component_class": "dispenser", "mount_axis": "Z"},
+                "gantry_1": {
+                    "component_class": "gantry",
+                    "backend": "fposbapi",
+                    "axes": {"Z": {"name": "Z", "index": 1}},
+                },
+            }
+        }
+
+        gantry_config, gantry_name, mount_axis_name = _discover_component_gantry_config(config, "micro-dispenser")
+        assert gantry_config == {
+            "component_class": "gantry",
+            "backend": "fposbapi",
+            "axes": {"Z": {"name": "Z", "index": 1}},
+        }
+        assert gantry_name == "gantry_1"
+        assert mount_axis_name == "Z"
+
+    def test_falls_back_to_sibling_gantry_component_when_mount_gantry_name_is_unresolved(self):
+        from fluid_control.cli.cli import _discover_component_gantry_config
+
+        config = {
+            "components": {
+                "pipettor_1": {
+                    "component_class": "pipettor",
+                    "mount_gantry": {"name": "pipettor-gantry"},
+                    "mount_axis": "ZP",
+                },
+                "gantry_2": {"component_class": "gantry", "backend": "modbus", "axes": {"ZP": {"name": "ZP"}}},
+            }
+        }
+
+        gantry_config, gantry_name, mount_axis_name = _discover_component_gantry_config(config, "pipettor_1")
+        assert gantry_config == {"component_class": "gantry", "backend": "modbus", "axes": {"ZP": {"name": "ZP"}}}
+        assert gantry_name == "gantry_2"
+        assert mount_axis_name == "ZP"
+
+    def test_returns_none_when_no_mount_gantry_defined_and_no_gantry_component_exists(self):
+        from fluid_control.cli.cli import _discover_component_gantry_config
+
+        config = {"components": {"micro-dispenser": {"component_class": "dispenser"}}}
+        assert _discover_component_gantry_config(config, "micro-dispenser") == (None, None, None)
+
+    def test_bootstrap_returns_offline_gantry_when_connection_fails(self, monkeypatch):
+        from fluid_control.cli.cli import _OfflineGantry, _bootstrap_gantry
+
+        fc_config = {
+            "components": {
+                "micro-dispenser": {
+                    "component_class": "dispenser",
+                    "mount_gantry": {"name": "gantry_1"},
+                    "mount_axis": "Z",
+                },
+                "gantry_1": {
+                    "component_class": "gantry",
+                    "backend": "fposbapi",
+                    "axes": {"Z": {"name": "Z", "index": 1}},
+                },
+            }
+        }
+
+        def fake_from_config(config, name):
+            raise OSError("boom")
+
+        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", fake_from_config)
+
+        gantry, mount_axis_name = _bootstrap_gantry(fc_config, "micro-dispenser", None, "gantry_1", "Z")
+        assert isinstance(gantry, _OfflineGantry)
+        assert mount_axis_name == "Z"
+
+
 class TestBuildCompleter:
     """Tests for _build_completer — skipped when prompt_toolkit is not installed."""
 
@@ -426,3 +640,17 @@ class TestPrintResult:
         from fluid_control.cli.render import print_result
 
         print_result([0])
+
+
+class TestInteractiveOutputStability:
+    def test_run_repl_delegates_to_shared_repl_driver(self, monkeypatch):
+        from fluid_control.cli import cli as fluid_cli
+
+        group_calls: list[tuple[tuple[object, ...], dict]] = []
+
+        monkeypatch.setattr(fluid_cli, "build_group", lambda session: {"session": session})
+        monkeypatch.setattr(fluid_cli, "_run_group_repl", lambda *args, **kwargs: group_calls.append((args, kwargs)))
+
+        fluid_cli.run_repl(__import__("unittest.mock", fromlist=["MagicMock"]).MagicMock())
+
+        assert len(group_calls) == 1

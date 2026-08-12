@@ -12,12 +12,12 @@ definitions so both the interactive entry point
 
 from collections.abc import Sequence
 
-from rich.console import Console
 from rich.table import Table, box
 
+from applied_motion.cli.theme import festo_console
 from fluid_control.fluid_control import OperationResult
 
-console = Console()
+console = festo_console()
 
 
 def print_result(result: OperationResult | Sequence[int | str]) -> None:
@@ -36,9 +36,9 @@ def print_result(result: OperationResult | Sequence[int | str]) -> None:
     code = result[0] if result else 1
     message = str(result[1]) if len(result) > 1 else ""
     if code == 0:
-        console.print(f"[green]✓[/] {message}")
+        console.print(f"[festo.ok]✓[/] {message}")
     elif code == 2:
-        console.print(f"[yellow]~[/] {message}")
+        console.print(f"[festo.muted]~[/] {message}")
     else:
         console.print(f"[red]✗[/] {message}")
 
@@ -55,9 +55,9 @@ def status_table(status: dict) -> Table:
         A [`Table`][rich.table.Table] ready for console output.
 
     """
-    table = Table(show_header=True, header_style="bold cyan", box=box.SIMPLE, padding=(0, 1))
+    table = Table(show_header=True, header_style="festo.brand", box=box.SIMPLE, padding=(0, 1))
     table.add_column("Key", style="bold")
-    table.add_column("Value", justify="left")
+    table.add_column("Value", justify="left", style="festo.value")
     for key, value in status.items():
         table.add_row(str(key), str(value))
     return table
@@ -74,9 +74,9 @@ def location_table(loc: dict[str, float]) -> Table:
         A [`Table`][rich.table.Table] ready for console output.
 
     """
-    table = Table(show_header=True, header_style="bold cyan", box=box.SIMPLE, padding=(0, 1))
+    table = Table(show_header=True, header_style="festo.brand", box=box.SIMPLE, padding=(0, 1))
     table.add_column("Axis", style="bold")
-    table.add_column("Position (mm)", justify="right")
+    table.add_column("Position (mm)", justify="right", style="festo.value")
     for axis, pos in loc.items():
         table.add_row(axis, f"{pos:.3f}")
     return table

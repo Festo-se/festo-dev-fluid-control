@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import fluid_control.cli.commands as commands_module
 from fluid_control.cli.commands import build_gantry_group, build_group
 from fluid_control.cli.compose.core import UnknownCommandError, UsageError
 
@@ -54,7 +55,18 @@ def _make_session(with_gantry: bool = True) -> MagicMock:
 class TestBuildGroupStructure:
     def test_registers_core_commands(self):
         group = build_group(_make_session())
-        for name in ("valve", "direct", "dispense", "aspirate", "mix", "pressure", "status", "pickup", "eject"):
+        for name in (
+            "valve",
+            "direct",
+            "dispense",
+            "aspirate",
+            "mix",
+            "pressure",
+            "status",
+            "loglevel",
+            "pickup",
+            "eject",
+        ):
             assert name in group.commands
 
     def test_mounts_gantry_child_when_gantry_present(self):
@@ -122,6 +134,17 @@ class TestFluidCommandDispatch:
         build_group(session).dispatch(["pressure", "70"])
         session.set_pressure.assert_called_once_with(70)
 
+    def test_loglevel_dispatches_to_runtime_logging_helper(self, monkeypatch):
+        session = _make_session()
+        messages: list[str] = []
+
+        monkeypatch.setattr(commands_module, "set_runtime_log_level", lambda args: "Log level set to INFO")
+        monkeypatch.setattr(commands_module.console, "print", messages.append)
+
+        build_group(session).dispatch(["loglevel", "INFO"])
+
+        assert messages == ["[festo.ok]✓[/] Log level set to INFO"]
+
     def test_pickup_parses_duration(self):
         session = _make_session()
         build_group(session).dispatch(["pickup", "0.5"])
@@ -136,6 +159,20 @@ class TestFluidCommandDispatch:
         session = _make_session()
         with pytest.raises(UnknownCommandError):
             build_group(session).dispatch(["frobnicate"])
+
+    def test_applied_motion_command_dispatches_to_motion_repl(self, monkeypatch):
+        session = _make_session()
+        calls: dict[str, object] = {}
+
+        def fake_runner(teach_session, gantry):
+            calls["teach_session"] = teach_session
+            calls["gantry"] = gantry
+
+        monkeypatch.setattr(commands_module, "_run_applied_motion_cli", fake_runner)
+        build_group(session).dispatch(["applied-motion"])
+
+        assert calls["gantry"] is session.gantry
+        assert calls["teach_session"].gantry is session.gantry
 
 
 class TestGantryCommandDispatch:

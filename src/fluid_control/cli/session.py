@@ -66,6 +66,7 @@ _TOP_LEVEL_CMDS: list[str] = [
     "classes",
     "channels",
     "status",
+    "loglevel",
     "help",
     "quit",
     "exit",
@@ -269,10 +270,22 @@ class FluidControlSession:
 
         """
         logger.info("move_axis: axis=%s, position=%.3f mm, velocity=%.1f mm/s", axis_name, position_mm, velocity)
-        self.gantry.move_to(  # noqa
-            deque([{axis_name: {"position": position_mm, "velocity": velocity}}]),
+        axis = self.gantry.axes[axis_name]  # type: ignore[ty:unresolved-attribute]
+        clamped = max(axis.min_position, min(axis.max_position, position_mm))
+        if clamped != position_mm:
+            logger.warning(
+                "move_axis: position %.3f mm clamped to %.3f mm (axis limits [%.3f, %.3f])",
+                position_mm,
+                clamped,
+                axis.min_position,
+                axis.max_position,
+            )
+        if abs(clamped - self.gantry.get_location()[axis_name]) < 1e-3:  # type: ignore[ty:unresolved-attribute]
+            return self.gantry.get_location()  # type: ignore[ty:unresolved-attribute]
+        self.gantry.move_to(  # type: ignore[ty:unresolved-attribute]
+            deque([{axis_name: {"position": clamped, "velocity": velocity}}]),
         )
-        return self.gantry.get_location()  # noqa
+        return self.gantry.get_location()  # # type: ignore[ty:unresolved-attribute]
 
     @require_attr("gantry")
     def raise_arm(self, delta_mm: float, velocity: float = _DEFAULT_VELOCITY) -> dict[str, float]:
@@ -300,7 +313,7 @@ class FluidControlSession:
             GantryNotConfiguredError: If no gantry is configured.
 
         """
-        current = self.gantry.get_location()
+        current = self.gantry.get_location()  # type: ignore[ty:unresolved-attribute]
         new_position = current[self.mount_axis_name] + delta_mm
         return self.move_axis(self.mount_axis_name, new_position, velocity)
 
@@ -316,7 +329,7 @@ class FluidControlSession:
             GantryNotConfiguredError: If no gantry is configured.
 
         """
-        return self.gantry.get_location()
+        return self.gantry.get_location()  # type: ignore[ty:unresolved-attribute]
 
     @require_attr("gantry")
     def home(self) -> None:
@@ -328,7 +341,7 @@ class FluidControlSession:
 
         """
         logger.info("home: homing all gantry axes")
-        self.gantry.home()
+        self.gantry.home()  # type: ignore[ty:unresolved-attribute]
 
     def enable_axes(self) -> None:
         """
