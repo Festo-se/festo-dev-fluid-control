@@ -27,7 +27,7 @@
                     "type": "CODESYS-PLC",
                     "control_mode": "python",
                     "control_package": "festo-applied-motion",
-                    "control_library": "gantry",
+                    "control_library": "applied_motion",
                     "control_module": "Gantry",
                     "control_backend": "fposbapi_client",
                     "index": 3
@@ -41,7 +41,7 @@
                         "channel": 2,
                         "control_mode": "python",
                         "control_package": "festo-applied-motion",
-                        "control_library": "gantry",
+                        "control_library": "applied_motion",
                         "control_module": "Gantry",
                         "control_backend": "fposbapi_client",
                         "hooks": {
@@ -190,7 +190,7 @@
                     "type": "CODESYS-PLC",
                     "control_mode": "python",
                     "control_package": "festo-applied-motion",
-                    "control_library": "gantry",
+                    "control_library": "applied_motion",
                     "control_module": "Gantry",
                     "control_backend": "fposbapi_client",
                     "index": 3
@@ -337,7 +337,7 @@
                     "type": "CODESYS-PLC",
                     "control_mode": "python",
                     "control_package": "festo-applied-motion",
-                    "control_library": "gantry",
+                    "control_library": "applied_motion",
                     "control_module": "Gantry",
                     "control_backend": "fposbapi_client",
                     "control_class": "FPosBAPIClient",
@@ -351,7 +351,7 @@
                         "name": "veab",
                         "control_mode": "python",
                         "control_package": "festo-applied-motion",
-                        "control_library": "gantry",
+                        "control_library": "applied_motion",
                         "control_module": "Gantry",
                         "control_backend": "fposbapi_client",
                         "hooks": {
@@ -548,6 +548,26 @@
                     "Y"
                 ],
                 "control_mode": "python",
+                "mounted": true,
+                "mount_axis": {
+                    "name": "ZP",
+                    "index": null,
+                    "uuid": "TODO"
+                },
+                "mount_gantry": {
+                    "name": "pipettor_gantry",
+                    "uuid": "TODO"
+                },
+                "mount_axis_control": {
+                    "type": "CMMT",
+                    "control_mode": "python",
+                    "control_package": "festo-applied-motion",
+                    "control_library": "applied_motion",
+                    "control_module": "Gantry",
+                    "control_backend": "edcon_axis",
+                    "control_class": "EdconAxis",
+                    "index": 1
+                },
                 "control_modules": {
                     "tip_ejector": {
                         "type": "pneumatic",
@@ -929,11 +949,7 @@
                             }
                         }
                     }
-                },
-                "mounted": true,
-                "mount_axis": "ZP",
-                "mounted_axis": "ZP",
-                "mount_axis_control": "CODESYS-PLC"
+                }
             },
             "gantry_1": {
                 "_comment": "FPosBAPI backend test fixture for Gantry. Targets a CECC-X PLC running the FPosBAPI CoDeSys server.",
@@ -988,16 +1004,175 @@
                 "backend": "modbus",
                 "uuid": "0000-000000000-000000-000",
                 "control_mode": "python",
-                "control_package": "festo-edcon",
-                "control_library": "edcon",
-                "control_system": "edrive",
-                "control_bus": "com_modbus",
-                "control_handler": "motion_handler",
-                "control_modules": {
-                    "_comment": "TODO: Some way of indicating this is per-axis, to not hardwire deps.",
-                    "com_modbus": "ComModbus",
-                    "motion_handler": "MotionHandler"
+                "control_package": "festo-applied-motion",
+                "control_library": "applied_motion",
+                "control_module": "Gantry",
+                "control_backend": "edcon_axis",
+                "control_class": "EdconAxis",
+                "axis_count": 4,
+                "axis_connections": {
+                    "X": [
+                        "Y"
+                    ],
+                    "Y": [
+                        "ZP",
+                        "ZG"
+                    ]
                 },
+                "motion_ordering": {
+                    "forward": [
+                        "X",
+                        "Y",
+                        "ZP",
+                        "ZG"
+                    ],
+                    "reverse": [
+                        "ZG",
+                        "ZP",
+                        "Y",
+                        "X"
+                    ]
+                },
+                "concurrent_axes": [
+                    "X",
+                    "Y"
+                ],
+                "axes": {
+                    "X": {
+                        "name": "X",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "X-axis",
+                        "ip": "192.168.0.100",
+                        "port": null,
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "Y",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": {
+                                "frame": {
+                                    "name": "cabinet",
+                                    "uuid": null
+                                }
+                            }
+                        }
+                    },
+                    "Y": {
+                        "name": "Y",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "Y-axis",
+                        "ip": "192.168.0.101",
+                        "port": "",
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "X",
+                                        "uuid": null
+                                    },
+                                    {
+                                        "name": "ZP",
+                                        "uuid": null
+                                    },
+                                    {
+                                        "name": "ZG",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": null
+                        }
+                    },
+                    "ZG": {
+                        "name": "ZG",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "Z-axis with gripper",
+                        "ip": "192.168.0.102",
+                        "port": "",
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "Y",
+                                        "uuid": null
+                                    }
+                                ],
+                                "tools": [
+                                    {
+                                        "name": "gripper",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": null
+                        }
+                    },
+                    "ZP": {
+                        "name": "ZP",
+                        "uuid": "0000-000000000-000000-000",
+                        "designation": "Z-axis with pipettor",
+                        "ip": "192.168.0.103",
+                        "port": "",
+                        "type": "linear",
+                        "motor_type": "stepper",
+                        "embedded_config": {
+                            "type": "festo-automation-suite",
+                            "location": null
+                        },
+                        "mounting_connections": {
+                            "dynamic_components": {
+                                "axes": [
+                                    {
+                                        "name": "Y",
+                                        "uuid": null
+                                    }
+                                ],
+                                "tools": [
+                                    {
+                                        "name": "pipettor",
+                                        "uuid": null
+                                    }
+                                ]
+                            },
+                            "static_components": null
+                        }
+                    }
+                }
+            },
+            "pipettor_gantry": {
+                "_comment": "Canonical instantiation parameters for EdconAxis and Gantry in the SLAS-8 pipettor configuration. IPs and axis names sourced from festo-dev-fluid-control/slas-8-config.json.",
+                "component_spec_version": "2.0",
+                "component_class": "gantry",
+                "backend": "modbus",
+                "uuid": "0000-000000000-000000-000",
+                "control_mode": "python",
+                "control_package": "festo-applied-motion",
+                "control_library": "applied_motion",
+                "control_module": "Gantry",
+                "control_backend": "edcon_axis",
+                "control_class": "EdconAxis",
                 "axis_count": 4,
                 "axis_connections": {
                     "X": [

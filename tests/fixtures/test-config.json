@@ -26,7 +26,7 @@
                     "type": "CODESYS-PLC",
                     "control_mode": "python",
                     "control_package": "festo-applied-motion",
-                    "control_library": "gantry",
+                    "control_library": "applied_motion",
                     "control_module": "Gantry",
                     "control_backend": "fposbapi_client",
                     "index": 3
@@ -40,7 +40,7 @@
                         "channel": 2,
                         "control_mode": "python",
                         "control_package": "festo-applied-motion",
-                        "control_library": "gantry",
+                        "control_library": "applied_motion",
                         "control_module": "Gantry",
                         "control_backend": "fposbapi_client",
                         "hooks": {
@@ -188,7 +188,7 @@
                     "type": "CODESYS-PLC",
                     "control_mode": "python",
                     "control_package": "festo-applied-motion",
-                    "control_library": "gantry",
+                    "control_library": "applied_motion",
                     "control_module": "Gantry",
                     "control_backend": "fposbapi_client",
                     "index": 3
@@ -335,7 +335,7 @@
                     "type": "CODESYS-PLC",
                     "control_mode": "python",
                     "control_package": "festo-applied-motion",
-                    "control_library": "gantry",
+                    "control_library": "applied_motion",
                     "control_module": "Gantry",
                     "control_backend": "fposbapi_client",
                     "index": 3
@@ -348,7 +348,7 @@
                         "name": "veab",
                         "control_mode": "python",
                         "control_package": "festo-applied-motion",
-                        "control_library": "gantry",
+                        "control_library": "applied_motion",
                         "control_module": "Gantry",
                         "control_backend": "fposbapi_client",
                         "hooks": {
@@ -928,9 +928,25 @@
                     }
                 },
                 "mounted": true,
-                "mount_axis": "ZP",
-                "mounted_axis": "ZP",
-                "mount_axis_control": "CODESYS-PLC"
+                "mount_axis": {
+                    "name": "ZP",
+                    "index": null,
+                    "uuid": "TODO"
+                },
+                "mount_gantry": {
+                    "name": "pipettor-gantry",
+                    "uuid": "TODO"
+                },
+                "mount_axis_control": {
+                    "type": "CMMT",
+                    "control_mode": "python",
+                    "control_package": "festo-applied-motion",
+                    "control_library": "applied_motion",
+                    "control_module": "Gantry",
+                    "control_backend": "edcon_axis",
+                    "control_class": "EdconAxis",
+                    "index": 1
+                }
             },
             "gantry_1": {
                 "_comment": "FPosBAPI backend test fixture for Gantry. Targets a CECC-X PLC running the FPosBAPI CoDeSys server.",
