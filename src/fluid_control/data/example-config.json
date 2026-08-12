@@ -157,7 +157,7 @@
                     "type": "CMMT",
                     "control_mode": "python",
                     "control_package": "festo-applied-motion",
-                    "control_library": "gantry",
+                    "control_library": "applied_motion",
                     "control_module": "Gantry",
                     "control_backend": "edcon_axis",
                     "control_class": "EdconAxis",
