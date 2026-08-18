@@ -326,43 +326,9 @@ wheels = [
 [[package]]
 name = "festo-dev-applied-motion"
 version = "0.6.0"
-source = { editable = "../festo-dev-applied-motion" }
+source = { git = "https://github.com/Festo-se/festo-dev-applied-motion#8d786d559d57352db5af1f926bf16cfd79c51ae5" }
 dependencies = [
     { name = "festo-edcon" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "festo-edcon", specifier = ">=1.0.1" },
-    { name = "prompt-toolkit", marker = "extra == 'cli'", specifier = ">=3.0.52" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.2.0" },
-]
-provides-extras = ["cli"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "prompt-toolkit", specifier = ">=3.0" },
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-cov", specifier = ">=6.0.0" },
-    { name = "pytest-mock", specifier = ">=3.14.0" },
-    { name = "rich", specifier = ">=13.0" },
-    { name = "ruff", specifier = ">=0.15.11" },
-    { name = "ty", specifier = ">=0.0.34" },
-]
-docs = [
-    { name = "mkdocs", specifier = ">=1.6.1,<2" },
-    { name = "mkdocs-autoapi", specifier = ">=0.4.1" },
-    { name = "mkdocs-autorefs", specifier = ">=1.4.2" },
-    { name = "mkdocs-codeinclude-plugin", specifier = ">=0.2.1" },
-    { name = "mkdocs-include-markdown-plugin", specifier = ">=7.1.5" },
-    { name = "mkdocs-live-edit-plugin" },
-    { name = "mkdocs-material", specifier = ">=9.6.14" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.29.1" },
-]
-examples = [{ name = "requests" }]
-teach = [
-    { name = "prompt-toolkit", specifier = ">=3.0" },
-    { name = "rich", specifier = ">=13.0" },
 ]
 
 [[package]]
@@ -407,7 +373,7 @@ examples = [
 
 [package.metadata]
 requires-dist = [
-    { name = "festo-dev-applied-motion", editable = "../festo-dev-applied-motion" },
+    { name = "festo-dev-applied-motion", git = "https://github.com/Festo-se/festo-dev-applied-motion" },
     { name = "festo-pgva", specifier = ">=0.2.1" },
     { name = "festo-vaem", specifier = ">=0.3" },
     { name = "prompt-toolkit", marker = "extra == 'cli'", specifier = ">=3.0.52" },

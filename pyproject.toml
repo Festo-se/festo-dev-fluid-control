@@ -75,7 +75,7 @@ cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true } }]
 module-name = "fluid_control"
 
 [tool.uv.sources]
-festo-dev-applied-motion = { path = "../festo-dev-applied-motion", editable = true } # { git = "https://github.com/Festo-se/festo-dev-applied-motion"}
+festo-dev-applied-motion = { git = "https://github.com/Festo-se/festo-dev-applied-motion" }
 
 [tool.ty.src]
 include = [
