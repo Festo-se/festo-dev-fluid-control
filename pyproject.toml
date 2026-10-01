@@ -1,38 +1,44 @@
 [project]
 name = "festo-dev-fluid-control"
 version = "0.3.3"
+authors = [
+    { name = "Kyle Wardlow", email = "kyle.wardlow@festo.com" },
+    { name = "Joshua Dang", email = "joshua.dang@festo.com" },
+]
 description = "Reference implementation of controls for pressure-over-liquid-based fluid controls from Festo"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Development Status :: 4 - Beta",
     "Operating System :: OS Independent",
 ]
-keywords = ["Festo", "Pipettor", "Pipetting", "Liquid", "Handling", "Lab", "Automation"]
-readme = {file = "README.md", content-type = "text/markdown"}
-authors = [
-    {name = "Kyle Wardlow", email = "kyle.wardlow@festo.com"},
-    {name = "Joshua Dang", email = "joshua.dang@festo.com"},
+keywords = [
+    "Festo",
+    "Pipettor",
+    "Pipetting",
+    "Liquid",
+    "Handling",
+    "Lab",
+    "Automation",
 ]
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = [
     "festo-pgva>=0.2.1",
     "festo-vaem>=0.3",
     "festo-dev-applied-motion>=0.3.3",
 ]
 
-[project.optional-dependencies]
-cli = [
-    "prompt-toolkit>=3.0.52",
-    "rich>=14.0.0",
-]
-
-[project.scripts]
-fluid-control-cli = "fluid_control.cli.cli:main"
-
 [project.urls]
 Homepage = "https://github.com/Festo-se/festo-dev-fluid-control/"
 Repository = "https://github.com/Festo-se/festo-dev-fluid-control.git"
 Issues = "https://github.com/Festo-se/festo-dev-fluid-control/issues"
+
+[project.scripts]
+fluid-control-cli = "fluid_control.cli.cli:main"
+
+[project.optional-dependencies]
+cli = ["prompt-toolkit>=3.0.52", "rich>=14.0.0"]
 
 [build-system]
 requires = ["uv_build>=0.11,<0.13"]
@@ -55,7 +61,7 @@ docs = [
     "mkdocs-include-markdown-plugin>=7.1.5",
     "mkdocs-material>=9.6.14",
     "mkdocstrings[python]>=0.29.1",
-    "mkdocs-codeinclude-plugin>=0.2.1",  
+    "mkdocs-codeinclude-plugin>=0.2.1",
 ]
 examples = [
     "requests", # TODO: Pull example configs down from config library repo
@@ -67,6 +73,11 @@ addopts = "-m 'not hardware'"
 markers = [
     "hardware: marks tests that require connected hardware (run with -m hardware)",
 ]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+log_level = "WARNING"
 
 [tool.uv]
 cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true } }]
@@ -75,15 +86,11 @@ cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true } }]
 module-name = "fluid_control"
 
 [tool.uv.sources]
-festo-dev-applied-motion = { path = "../festo-dev-applied-motion", editable = true } # { git = "https://github.com/Festo-se/festo-dev-applied-motion"}
+festo-dev-applied-motion = { git = "https://github.com/Festo-se/festo-dev-applied-motion" }
 
 [tool.ty.src]
-include = [
-    "src"
-]
-exclude = [
-    "tests"
-]
+include = ["src"]
+exclude = ["tests"]
 
 [tool.ruff]
 line-length = 120
@@ -97,6 +104,7 @@ exclude = [
     "**/.venv",
     "**/.pytest_cache",
     "**/tests",
+    "**/pyproject.toml",
 ]
 fix = true
 show-fixes = true
@@ -104,7 +112,7 @@ show-fixes = true
 [tool.ruff.lint]
 select = ["D", "E4", "E7", "E9", "F", "C901", "B", "S"]
 ignore = ["D203", "D212"]
-exclude = ["tests/*",]
+exclude = ["tests/*"]
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore D100 and D104 in all __init__.py files
@@ -118,10 +126,4 @@ indent-style = "space"
 quote-style = "double"
 line-ending = "auto"
 docstring-code-format = true
-exclude = [
-    ".git",
-    "__pycache__",
-    ".vscode",
-    ".venv",
-    ".pytest_cache",
-]
+exclude = [".git", "__pycache__", ".vscode", ".venv", ".pytest_cache"]
