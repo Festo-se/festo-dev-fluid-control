@@ -27,7 +27,7 @@ _DEFAULT_FPOSBAPI_PORT = 1234
 
 ip = getenv("FPOSBAPI_IP", _DEFAULT_FPOSBAPI_IP)
 port = int(getenv("FPOSBAPI_PORT", str(_DEFAULT_FPOSBAPI_PORT)))
-fixture_path = Path(__file__).parent / "test-fluid-configs.json"
+fixture_path = Path(__file__).parent / "src" / "fluid_control" / "data" / "test-fluid-configs.json"
 with fixture_path.open() as fh:
     cfg = json.load(fh)
     # TODO: Validate TCP connction with cfg["interface"]["type"] = "tcp/ip"
