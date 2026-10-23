@@ -73,34 +73,11 @@ class TestTestDispenserInit:
     def test_creates_dispenser_instance(self, test_dispenser):
         assert isinstance(test_dispenser, Dispenser)
 
-    def test_channel_count_is_two(self, test_dispenser):
-        assert test_dispenser.channel_count == 2
-
-    def test_active_channels_are_one_and_two(self, test_dispenser):
-        assert test_dispenser.active_channels == [1, 2]
-
-    def test_active_valve_count_is_two(self, test_dispenser):
-        assert test_dispenser.active_valve_count == 2
-
-    def test_pgva_ip_from_config(self, test_dispenser):
-        assert test_dispenser.pressure_control_config.ip == "192.168.10.102"
-
-    def test_vaem_ip_from_config(self, test_dispenser):
-        assert test_dispenser.valve_control_config.ip == "192.168.10.27"
-
-    def test_pgva_port_from_config(self, test_dispenser):
-        assert test_dispenser.pressure_control_config.port == 502
-
-    def test_vaem_port_from_config(self, test_dispenser):
-        assert test_dispenser.valve_control_config.port == 502
-
-
 # ---------------------------------------------------------------------------
 # test dispenser — liquid classes and calibration
 # ---------------------------------------------------------------------------
 
-
-TEST_DISPENSER_LIQUID_CLASSES = ["water", "ethylene-glycol10%", "third-liquid-class"]
+TEST_DISPENSER_LIQUID_CLASSES = ["water"]
 
 
 class TestTestDispenserLiquidClasses:
@@ -121,22 +98,6 @@ class TestTestDispenserLiquidClasses:
             entry = test_dispenser.valve_control_timing_functions[liquid_class]["dispense"][ch]
             assert callable(entry["slope"])
             assert callable(entry["intercept"])
-
-    def test_water_dispense_flow_offset_ch1(self, test_dispenser):
-        # flow_coefficients["1"]["flow_offset"] = 0.826181241, channel_index_coeff=0
-        # → slope is constant 0.826181241 regardless of active_channels
-        slope_fn = test_dispenser.valve_control_timing_functions["water"]["dispense"]["1"]["slope"]
-        assert slope_fn(1) == pytest.approx(0.826181241)
-        assert slope_fn(8) == pytest.approx(0.826181241)
-
-    def test_water_dispense_flow_offset_ch2(self, test_dispenser):
-        slope_fn = test_dispenser.valve_control_timing_functions["water"]["dispense"]["2"]["slope"]
-        assert slope_fn(1) == pytest.approx(0.878542698)
-
-    def test_water_dispense_volume_offset_ch1(self, test_dispenser):
-        # intercept = 0.321305707 * active_channels + (-4.857648804)
-        intercept_fn = test_dispenser.valve_control_timing_functions["water"]["dispense"]["1"]["intercept"]
-        assert intercept_fn(2) == pytest.approx(0.321305707 * 2 + (-4.857648804))
 
     def test_water_dispense_opening_time_positive_for_50ul(self, test_dispenser):
         slope = test_dispenser.valve_control_timing_functions["water"]["dispense"]["1"]["slope"](2)

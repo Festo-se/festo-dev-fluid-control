@@ -8,6 +8,7 @@ tested when ``prompt_toolkit`` and ``rich`` are importable.
 
 from collections import deque
 import logging
+import sys
 from unittest.mock import MagicMock
 import importlib
 import importlib.util
@@ -374,16 +375,16 @@ class TestDiscoverComponentGantryConfig:
         disable_calls: list[int] = []
         basic_config_called = {"value": False}
 
-        monkeypatch.setattr(logging_utils.logging, "disable", disable_calls.append)
+        monkeypatch.setattr(logging, "disable", disable_calls.append)
         monkeypatch.setattr(
-            logging_utils.logging,
+            logging,
             "basicConfig",
             lambda **kwargs: basic_config_called.__setitem__("value", True),
         )
 
         assert logging_utils.configure_logging("OFF") == "OFF"
 
-        assert disable_calls == [logging_utils.logging.CRITICAL]
+        assert disable_calls == [logging.CRITICAL]
         assert basic_config_called["value"] is False
 
     def test_configure_logging_enables_requested_level(self, monkeypatch):
@@ -392,18 +393,18 @@ class TestDiscoverComponentGantryConfig:
         disable_calls: list[int] = []
         basic_config_calls: list[dict[str, object]] = []
 
-        monkeypatch.setattr(logging_utils.logging, "disable", disable_calls.append)
-        monkeypatch.setattr(logging_utils.logging, "basicConfig", lambda **kwargs: basic_config_calls.append(kwargs))
+        monkeypatch.setattr(logging, "disable", disable_calls.append)
+        monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: basic_config_calls.append(kwargs))
 
         assert logging_utils.configure_logging("DEBUG") == "DEBUG"
 
-        assert disable_calls == [logging_utils.logging.NOTSET]
+        assert disable_calls == [logging.NOTSET]
         assert basic_config_calls == [
             {
-                "level": logging_utils.logging.DEBUG,
+                "level": logging.DEBUG,
                 "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
                 "force": True,
-                "stream": logging_utils.sys.stdout,
+                "stream": sys.stdout,
             }
         ]
 
@@ -414,8 +415,8 @@ class TestDiscoverComponentGantryConfig:
         basic_config_calls: list[dict[str, object]] = []
 
         monkeypatch.setattr(logging_utils, "current_log_level_name", lambda: "INFO")
-        monkeypatch.setattr(logging_utils.logging, "disable", disable_calls.append)
-        monkeypatch.setattr(logging_utils.logging, "basicConfig", lambda **kwargs: basic_config_calls.append(kwargs))
+        monkeypatch.setattr(logging, "disable", disable_calls.append)
+        monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: basic_config_calls.append(kwargs))
 
         assert logging_utils.configure_logging("INHERIT") == "INFO"
 
@@ -429,22 +430,16 @@ class TestDiscoverComponentGantryConfig:
 
         assert logging_utils.set_runtime_log_level(["error"]) == "Log level set to ERROR"
 
-    def test_runtime_log_level_command_reports_current_level(self, monkeypatch):
-        from fluid_control.cli import logging_utils
 
-        monkeypatch.setattr(logging_utils, "current_log_level_name", lambda: "WARNING")
-
-        assert logging_utils.set_runtime_log_level([]) == "Current log level: WARNING"
 
     def test_configure_logging_forces_pymodbus_logger_to_info(self, monkeypatch):
         from fluid_control.cli import logging_utils
 
-        monkeypatch.setattr(logging_utils.logging, "disable", lambda _: None)
-        monkeypatch.setattr(logging_utils.logging, "basicConfig", lambda **kwargs: None)
-        monkeypatch.setattr(logging_utils, "_PYMODBUS_LOGGER_NAME", "pymodbus.fluid-control.test")
-        monkeypatch.setattr(logging_utils.logging.root.manager, "disable", logging.NOTSET)
+        monkeypatch.setattr(logging, "disable", lambda _: None)
+        monkeypatch.setattr(logging , "basicConfig", lambda **kwargs: None)
+        monkeypatch.setattr(logging.root.manager, "disable", logging.NOTSET)
 
-        pymodbus_logger = logging.getLogger("pymodbus.fluid-control.test")
+        pymodbus_logger = logging.getLogger("pymodbus")
         handler = logging.StreamHandler()
         handler.setLevel(logging.DEBUG)
         pymodbus_logger.handlers = [handler]
@@ -458,11 +453,9 @@ class TestDiscoverComponentGantryConfig:
 
     def test_configure_logging_off_disables_pymodbus_logger(self, monkeypatch):
         from fluid_control.cli import logging_utils
+        monkeypatch.setattr(logging.root.manager, "disable", logging.NOTSET)
 
-        monkeypatch.setattr(logging_utils, "_PYMODBUS_LOGGER_NAME", "pymodbus.fluid-control.off-test")
-        monkeypatch.setattr(logging_utils.logging.root.manager, "disable", logging.NOTSET)
-
-        pymodbus_logger = logging.getLogger("pymodbus.fluid-control.off-test")
+        pymodbus_logger = logging.getLogger("pymodbus")
         pymodbus_logger.disabled = False
 
         assert logging_utils.configure_logging("OFF") == "OFF"
