@@ -188,6 +188,7 @@ class PressureOverLiquidControl(FluidControl):
         disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
         pressure_control: PGVA | None = None,
         valve_control: VAEM | None = None,
+        device_config: DeviceConfig | None = None,
     ) -> None:
         """
         Initialize a pressure-over-liquid fluid control module.
@@ -207,6 +208,9 @@ class PressureOverLiquidControl(FluidControl):
             valve_control: Instance of already-instantiated valve control device.
                 Opinionated choice that this is a VAEM with some support for single valves controlled
                 by the DO pin on the PGVA at present.
+            device_config: Optional pre-resolved component configuration view supplied by the
+                configurator builder. When omitted, the legacy ``config`` and ``component_id``
+                resolution path is used.
 
         Examples:
             Construct from a configuration dict (the library opens the hardware
@@ -248,45 +252,51 @@ class PressureOverLiquidControl(FluidControl):
             )
 
         if component_id is None:
-            component_id = f"{self.component_type}_1"
+            component_id = device_config.component_id if device_config is not None else f"{self.component_type}_1"
         self.component_id = component_id
+        self._owned_controllers: list[tuple[str, object]] = []
+        self._closed = False
         logger.info(f"Initializing {self.component_type} (id={component_id!r})")
-        self.device_config = DeviceConfig(config, component_id)
+        self.device_config = device_config if device_config is not None else DeviceConfig(config, component_id)
         self.config = self.device_config.raw
         self.active_channels = self.device_config.active_channels
         self.active_valve_count = self.device_config.active_valve_count
 
-        if pressure_control is not None:
-            self.pressure_control = pressure_control
-        else:
-            self._init_pressure_control()
+        try:
+            if pressure_control is not None:
+                self.pressure_control = pressure_control
+            else:
+                self._init_pressure_control()
 
-        if valve_control is not None:
-            self.valve_control = valve_control
-            self._set_valve_error_handling()
-        else:
-            self._init_valve_control()
+            if valve_control is not None:
+                self.valve_control = valve_control
+                self._set_valve_error_handling()
+            else:
+                self._init_valve_control()
 
-        self.fluid_control_status = Status()
-        self.channel_count = self.device_config.channel_count
-        # Always bind mount_arm (None when static) so callers can rely on the attribute
-        # existing; _require_arm() enforces the static/dynamic contract.
-        self.mount_arm: Axis | None = mount_arm  # TODO: make this a param input via config
-        self.is_static = mount_arm is None
-        self.disable_axes = disable_axes
-        for valve in self.active_channels:  # TODO for valve in self.active_channels
-            self.valve_control.deselect_valve(valve_id=valve)  # TODO
-        self.set_pressures()
-        # TODO: in json config figure out how to do multiple calibrations at different pressures
-        # TODO: modify config such that multiple pressures can have calibration per process  in the json
-        self.timing_model = TimingModel()
-        self.timing_model.build(self.device_config.calibration)
-        self.valve_control_timing_functions = self.timing_model.functions
-        logger.info(
-            f"{self.component_type} initialization complete — channels={self.active_channels}, "
-            f"liquid_classes={list(self.config['calibration'].keys())}, "
-            f"static={self.is_static}"
-        )
+            self.fluid_control_status = Status()
+            self.channel_count = self.device_config.channel_count
+            # Always bind mount_arm (None when static) so callers can rely on the attribute
+            # existing; _require_arm() enforces the static/dynamic contract.
+            self.mount_arm: Axis | None = mount_arm  # TODO: make this a param input via config
+            self.is_static = mount_arm is None
+            self.disable_axes = disable_axes
+            for valve in self.active_channels:  # TODO for valve in self.active_channels
+                self.valve_control.deselect_valve(valve_id=valve)  # TODO
+            self.set_pressures()
+            # TODO: in json config figure out how to do multiple calibrations at different pressures
+            # TODO: modify config such that multiple pressures can have calibration per process  in the json
+            self.timing_model = TimingModel()
+            self.timing_model.build(self.device_config.calibration)
+            self.valve_control_timing_functions = self.timing_model.functions
+            logger.info(
+                f"{self.component_type} initialization complete — channels={self.active_channels}, "
+                f"liquid_classes={list(self.config['calibration'].keys())}, "
+                f"static={self.is_static}"
+            )
+        except Exception:
+            self._close_owned_controllers()
+            raise
 
     def set_pressures(self) -> None:
         """Populate ``self.pressures`` from the calibration config for each liquid class and process."""
@@ -317,6 +327,7 @@ class PressureOverLiquidControl(FluidControl):
             port=iface.port,
         )
         self.pressure_control = PGVA(config=self.pressure_control_config)
+        self._owned_controllers.append(("pressure", self.pressure_control))
         logger.debug(f"Pressure controller {iface.name} initialized at {iface.ip}:{iface.port}")
 
     def _init_valve_control(self) -> None:
@@ -333,6 +344,7 @@ class PressureOverLiquidControl(FluidControl):
             port=iface.port,
         )
         self.valve_control = VAEM(config=self.valve_control_config)
+        self._owned_controllers.append(("valve", self.valve_control))
         logger.debug(f"Valve controller {iface.name} initialized at {iface.ip}:{iface.port}")
         self._set_valve_error_handling()
 
@@ -767,16 +779,73 @@ class PressureOverLiquidControl(FluidControl):
         """Return hash derived from component type and config."""
         return hash((self.component_type, json.dumps(self.config, sort_keys=True)))
 
+    @staticmethod
+    def _close_controller_connection(controller_kind: str, controller: object) -> None:
+        """Close one controller's installed backend connection when available.
+
+        Args:
+            controller_kind: Controller category, either ``"pressure"`` or ``"valve"``.
+            controller: Controller wrapper created by this instance.
+
+        Raises:
+            Exception: Propagates a backend close failure to the lifecycle caller.
+        """
+        backend = getattr(controller, "_backend", None)
+        if controller_kind == "pressure":
+            client = getattr(backend, "client", None)
+            close = getattr(client, "close", None)
+        else:
+            close = getattr(backend, "close_client", None)
+        if callable(close):
+            close()
+            return
+
+        fallback_close = getattr(controller, "close", None)
+        if callable(fallback_close):
+            fallback_close()
+
+    def _close_owned_controllers(self) -> None:
+        """Close internally-created controller connections once, logging failures."""
+        closed_ids: set[int] = set()
+        for controller_kind, controller in reversed(self._owned_controllers):
+            if id(controller) in closed_ids:
+                continue
+            closed_ids.add(id(controller))
+            try:
+                self._close_controller_connection(controller_kind, controller)
+            except Exception:
+                logger.warning("Failed to close owned %s controller", controller_kind, exc_info=True)
+
+    def close(self) -> None:
+        """Return hardware to a safe state and close internally-owned connections.
+
+        The method is idempotent. Controllers supplied through ``pressure_control``
+        or ``valve_control`` are never closed by this method.
+        """
+        if self._closed:
+            return
+        self._closed = True
+
+        try:
+            self.pressure_control.set_output_pressure(0)
+        except Exception:
+            logger.warning("Failed to return pressure to zero during close", exc_info=True)
+        try:
+            for valve in range(1, self.channel_count + 1):
+                self.valve_control.deselect_valve(valve_id=valve)
+        except Exception:
+            logger.warning("Failed to deselect valves during close", exc_info=True)
+        if hasattr(self, "fluid_control_status"):
+            self.fluid_control_status.set_clear()
+        self._close_owned_controllers()
+
     def __enter__(self):
         """Entry for context manager."""
         return self
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> bool:
         """Return hardware to a safe state on context exit."""
-        self.pressure_control.set_output_pressure(0)
-        for valve in range(1, self.channel_count + 1):
-            self.valve_control.deselect_valve(valve_id=valve)
-        self.fluid_control_status.set_clear()
+        self.close()
         return False
 
 

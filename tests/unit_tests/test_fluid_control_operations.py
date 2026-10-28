@@ -14,6 +14,8 @@ Key mock invariants:
 - ``sleep`` is a no-op so valve-timing waits are instantaneous.
 """
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -34,6 +36,21 @@ def _set_pressure_values(mock_pressure) -> list[int]:
     for c in mock_pressure.set_output_pressure.call_args_list:
         result.append(c.args[0] if c.args else c.kwargs["pressure"])
     return result
+
+
+def _controller_pair() -> tuple[MagicMock, MagicMock, MagicMock, MagicMock]:
+    """Create injected controller doubles with explicit backend close APIs."""
+    pressure = MagicMock()
+    pressure_client = MagicMock()
+    pressure._backend = SimpleNamespace(client=pressure_client)
+    pressure_state = {"pressure": 0}
+    pressure.set_output_pressure.side_effect = lambda pressure: pressure_state.update({"pressure": pressure})
+    pressure.get_output_pressure.side_effect = lambda: pressure_state["pressure"]
+    valve = MagicMock()
+    valve_backend = MagicMock()
+    valve._backend = valve_backend
+    valve.get_status.return_value = {"Readiness": 0}
+    return pressure, valve, pressure_client, valve_backend.close_client
 
 
 # ---------------------------------------------------------------------------
@@ -143,8 +160,7 @@ class TestAspirate:
     def test_calls_set_output_pressure_with_aspirate_pressure(self, pipettor_instance):
         pipettor_instance.aspirate(self._ASPIRATE_CMD)
         pressure_calls = [
-            c.kwargs["pressure"]
-            for c in pipettor_instance.mock_pressure.set_output_pressure.call_args_list
+            c.kwargs["pressure"] for c in pipettor_instance.mock_pressure.set_output_pressure.call_args_list
         ]
         assert -100 in pressure_calls
 
@@ -307,6 +323,7 @@ class TestPickupTips:
         # confirming the method traversed the full descent sequence.
         pipettor_with_arm.pickup_tips(duration=0.5)
         import pytest as _pytest
+
         with _pytest.raises(StopIteration):
             pipettor_with_arm.mock_arm.current_position()
 
@@ -359,10 +376,7 @@ class TestDirectCommand:
     def test_calls_set_output_pressure_with_requested_pressure(self, dispenser):
         self._set_vaem_ready(dispenser)
         dispenser.direct_command({1: 100}, pressure=50)
-        pressure_calls = [
-            c.kwargs["pressure"]
-            for c in dispenser.mock_pressure.set_output_pressure.call_args_list
-        ]
+        pressure_calls = [c.kwargs["pressure"] for c in dispenser.mock_pressure.set_output_pressure.call_args_list]
         assert 50 in pressure_calls
 
     def test_returns_success_tuple_with_valid_inputs(self, dispenser):
@@ -383,10 +397,7 @@ class TestDirectCommand:
     def test_sets_pressure_to_negative_one_after_valves_open(self, dispenser):
         self._set_vaem_ready(dispenser)
         dispenser.direct_command({1: 100}, pressure=50)
-        pressure_calls = [
-            c.kwargs["pressure"]
-            for c in dispenser.mock_pressure.set_output_pressure.call_args_list
-        ]
+        pressure_calls = [c.kwargs["pressure"] for c in dispenser.mock_pressure.set_output_pressure.call_args_list]
         assert -1 in pressure_calls
 
     def test_invalid_channel_returns_error_tuple(self, dispenser):
@@ -414,9 +425,7 @@ class TestPressureOverLiquidControlRepr:
     def test_repr_contains_class_name(self, dispenser):
         assert "Dispenser" in repr(dispenser)
 
-    def test_repr_contains_component_type(self, dispenser):
         assert "dispenser" in repr(dispenser)
-
 
 
 class TestPressureOverLiquidControlLen:
@@ -530,6 +539,61 @@ class TestPressureOverLiquidControlContextManager:
         with pytest.raises(ValueError):
             with dispenser:
                 raise ValueError("test error")
+
+    def test_close_is_idempotent_for_owned_connections(self, mocker, dispenser_config):
+        pressure, valve, pressure_client, valve_close = _controller_pair()
+        mocker.patch("fluid_control.fluid_control.PGVA", return_value=pressure)
+        mocker.patch("fluid_control.fluid_control.VAEM", return_value=valve)
+        mocker.patch("fluid_control.fluid_control.sleep")
+
+        from fluid_control import Dispenser
+
+        instance = Dispenser(config=dispenser_config)
+        instance.close()
+        instance.close()
+
+        pressure_client.close.assert_called_once_with()
+        valve_close.assert_called_once_with()
+
+    def test_context_exit_uses_close_once(self, mocker, dispenser_config):
+        pressure, valve, pressure_client, valve_close = _controller_pair()
+        mocker.patch("fluid_control.fluid_control.PGVA", return_value=pressure)
+        mocker.patch("fluid_control.fluid_control.VAEM", return_value=valve)
+        mocker.patch("fluid_control.fluid_control.sleep")
+
+        from fluid_control import Dispenser
+
+        instance = Dispenser(config=dispenser_config)
+        with instance:
+            pass
+        instance.close()
+
+        pressure_client.close.assert_called_once_with()
+        valve_close.assert_called_once_with()
+
+    def test_injected_controllers_remain_caller_owned(self, dispenser_config):
+        pressure, valve, pressure_client, valve_close = _controller_pair()
+        from fluid_control import Dispenser
+
+        instance = Dispenser(config=dispenser_config, pressure_control=pressure, valve_control=valve)
+        instance.close()
+
+        pressure_client.close.assert_not_called()
+        valve_close.assert_not_called()
+
+    def test_partial_construction_closes_pressure_and_preserves_valve_error(self, mocker, dispenser_config):
+        pressure, _valve, pressure_client, _valve_close = _controller_pair()
+        original_error = RuntimeError("valve initialization failed")
+        mocker.patch("fluid_control.fluid_control.PGVA", return_value=pressure)
+        mocker.patch("fluid_control.fluid_control.VAEM", side_effect=original_error)
+
+        from fluid_control import Dispenser
+
+        with pytest.raises(RuntimeError) as caught:
+            Dispenser(config=dispenser_config)
+
+        assert caught.value is original_error
+        pressure_client.close.assert_called_once_with()
 
 
 class TestWaitValveControlReady:
@@ -681,4 +745,3 @@ class TestOperationResult:
         result = dispenser.direct_command({1: 100}, pressure=50)
         assert isinstance(result, OperationResult)
         assert result.code == 1
-

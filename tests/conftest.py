@@ -52,22 +52,12 @@ def _make_component(*, channels: int, active_channels: list[int]) -> dict:
     Calibration coefficients are derived from real test-config data so
     that timing calculations produce realistic (non-degenerate) values.
     """
-    flow_d = {
-        str(i): {"channel_index_coeff": 0.0, "flow_offset": 0.826181241 + i * 0.01}
-        for i in active_channels
-    }
+    flow_d = {str(i): {"channel_index_coeff": 0.0, "flow_offset": 0.826181241 + i * 0.01} for i in active_channels}
     vol_d = {
-        str(i): {"channel_index_coeff": 0.321305707, "volume_offset": -4.857648804 - i * 0.1}
-        for i in active_channels
+        str(i): {"channel_index_coeff": 0.321305707, "volume_offset": -4.857648804 - i * 0.1} for i in active_channels
     }
-    flow_a = {
-        str(i): {"channel_index_coeff": 0.0, "flow_offset": 1.318858492 + i * 0.01}
-        for i in active_channels
-    }
-    vol_a = {
-        str(i): {"channel_index_coeff": 0.0, "volume_offset": -10.40199499 - i * 0.1}
-        for i in active_channels
-    }
+    flow_a = {str(i): {"channel_index_coeff": 0.0, "flow_offset": 1.318858492 + i * 0.01} for i in active_channels}
+    vol_a = {str(i): {"channel_index_coeff": 0.0, "volume_offset": -10.40199499 - i * 0.1} for i in active_channels}
 
     return {
         "uuid": "0000-000000000-000000-001",
@@ -84,9 +74,7 @@ def _make_component(*, channels: int, active_channels: list[int]) -> dict:
                 "name": "vaem",
                 "valve_count": channels,
                 "active_valve_terminals": active_channels,
-                "valve_type": {
-                    str(ch): {"type": {"error-handling": True}} for ch in active_channels
-                },
+                "valve_type": {str(ch): {"type": {"error-handling": True}} for ch in active_channels},
                 "uuid": 2,
                 "interface": {"type": "tcp/ip", "ip": "192.168.10.27", "port": 502},
             },
@@ -273,9 +261,7 @@ def hardware_dispenser():
     pgva_ip = getenv("DISPENSER_PGVA_IP")
     vaem_ip = getenv("DISPENSER_VAEM_IP")
     if not pgva_ip or not vaem_ip:
-        pytest.skip(
-            "DISPENSER_PGVA_IP and DISPENSER_VAEM_IP not set — skipping hardware tests"
-        )
+        pytest.skip("DISPENSER_PGVA_IP and DISPENSER_VAEM_IP not set — skipping hardware tests")
 
     component = _make_component(channels=2, active_channels=[1, 2])
     component["control_modules"]["pressure"]["interface"]["ip"] = pgva_ip
@@ -407,10 +393,12 @@ def test_hardware_dispenser(test_config):
         uv run pytest -m hardware -v
     """
     modules = test_config["component_config"]["components"]["dispenser_1"]["control_modules"]
-    _require_reachable([
-        (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
-        (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
-    ])
+    _require_reachable(
+        [
+            (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
+            (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
+        ]
+    )
     instance = Dispenser(config=test_config["component_config"])
     yield instance
     _close_device(instance)
@@ -427,10 +415,12 @@ def test_hardware_pipettor(test_config):
         uv run pytest -m hardware -v
     """
     modules = test_config["component_config"]["components"]["pipettor_1"]["control_modules"]
-    _require_reachable([
-        (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
-        (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
-    ])
+    _require_reachable(
+        [
+            (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
+            (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
+        ]
+    )
     instance = Pipettor(config=test_config["component_config"])
     yield instance
     _close_device(instance)

@@ -17,14 +17,17 @@ Run with::
 Requires a reachable PGVA and VAEM at the addresses in the configuration.
 """
 
-from fluid_control import Dispenser, load_example_config
+from configurator import Configurator, Registry
+from fluid_control import example_config_path
+from fluid_control.configurator_adapter import fluid_control_registrations
 
 
 def main() -> None:
     """Open channel 1 for a sweep of opening times at a fixed pressure."""
-    config = load_example_config()
-
-    with Dispenser(config=config, component_id="micro-dispenser") as dispenser:
+    with Configurator.bootstrap(
+        example_config_path(), "micro-dispenser", Registry.compose(*fluid_control_registrations())
+    ) as result:
+        dispenser = result.instance
         for opening_time_ms in (80, 100, 120, 140):
             result = dispenser.direct_command(
                 channel_times={1: opening_time_ms},

@@ -14,14 +14,17 @@ Run with::
 Requires a reachable PGVA and VAEM at the addresses in the configuration.
 """
 
-from fluid_control import Dispenser, load_example_config
+from configurator import Configurator, Registry
+from fluid_control import example_config_path
+from fluid_control.configurator_adapter import fluid_control_registrations
 
 
 def main() -> None:
     """Dispense water on channels 1 and 2 simultaneously."""
-    config = load_example_config()
-
-    with Dispenser(config=config, component_id="micro-dispenser") as dispenser:
+    with Configurator.bootstrap(
+        example_config_path(), "micro-dispenser", Registry.compose(*fluid_control_registrations())
+    ) as result:
+        dispenser = result.instance
         dispenser.dispense(
             {
                 1: {"volume": 10.0, "liquid_class": "water"},

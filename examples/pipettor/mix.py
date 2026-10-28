@@ -14,14 +14,17 @@ Run with::
 Requires a reachable PGVA and VAEM at the addresses in the configuration.
 """
 
-from fluid_control import Pipettor, load_example_config
+from configurator import Configurator, Registry
+from fluid_control import example_config_path
+from fluid_control.configurator_adapter import fluid_control_registrations
 
 
 def main() -> None:
     """Mix 20 uL up and down for 3 cycles on channel 1."""
-    config = load_example_config()
-
-    with Pipettor(config=config, component_id="pipettor") as pipettor:
+    with Configurator.bootstrap(
+        example_config_path(), "pipettor", Registry.compose(*fluid_control_registrations())
+    ) as result:
+        pipettor = result.instance
         pipettor.mix({1: {"volume": 20.0, "liquid_class": "water"}}, cycles=3)
 
 

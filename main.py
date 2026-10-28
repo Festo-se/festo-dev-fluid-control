@@ -1,57 +1,47 @@
-"""Hello."""
+"""Manual fluid-control hardware smoke test."""
 
-import sys
-import json  # TODO: FestoConfiguration class with built in validators, etc
-
+import pprint
 import time
-from os import getenv
 from pathlib import Path
 import logging
 
-import pprint
-
-
-from fluid_control import Dispenser, PressureControl
 from applied_motion import Gantry
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[logging.FileHandler("fluid_control.log"), logging.StreamHandler()],
-)
-
-_DEFAULT_FPOSBAPI_IP = "192.168.0.50"
-_DEFAULT_FPOSBAPI_PORT = 1234
+from configurator import Configurator, Registry
+from fluid_control import Dispenser, PressureControl
+from fluid_control.configurator_adapter import fluid_control_registrations
 
 
-ip = getenv("FPOSBAPI_IP", _DEFAULT_FPOSBAPI_IP)
-port = int(getenv("FPOSBAPI_PORT", str(_DEFAULT_FPOSBAPI_PORT)))
-fixture_path = Path(__file__).parent / "src" / "fluid_control" / "data" / "test-fluid-configs.json"
-with fixture_path.open() as fh:
-    cfg = json.load(fh)
-    # TODO: Validate TCP connction with cfg["interface"]["type"] = "tcp/ip"
-    components = cfg["component_config"]
+def main() -> None:
+    """Run the manual hardware smoke test."""
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[logging.FileHandler("fluid_control.log"), logging.StreamHandler()],
+    )
 
-# Init gantry
-gantry = Gantry.from_config(components)
+    fixture_path = Path(__file__).parent / "src" / "fluid_control" / "data" / "test-fluid-configs.json"
+    registry = Registry.compose(*fluid_control_registrations())
+    with Configurator.bootstrap(fixture_path, "micro-dispenser", registry) as result:
+        micro_view = result.views["micro-dispenser"]
+        macro_view = micro_view.require_relationship("macro-dispenser")
+        gantry = Gantry.from_config(micro_view.root)
+        micro_dispenser = result.instance
+        macro_dispenser = Dispenser(
+            config={"components": {macro_view.name: macro_view.data}},
+            component_id=macro_view.name,
+            pressure_control=PressureControl(gantry),
+            valve_control=micro_dispenser.valve_control,
+        )
 
-# Init micro dispenser
-micro_dispenser = Dispenser(config=components, component_id="micro-dispenser")
+        pprint.pprint(micro_view.root)
+        micro_dispenser.pressure_control.set_output_pressure(449)
+        time.sleep(1.5)
+        pprint.pprint(gantry._client.set_veab(150))
+        time.sleep(3)
+        pprint.pprint(gantry._client.get_veab())  # TODO: get_veab() is hanging
+        macro_dispenser.close()
 
-pprint.pprint(components)
-# Init macro dispenser
-macro_dispenser = Dispenser(
-    config=components,
-    component_id="macro-dispenser",
-    pressure_control=PressureControl(gantry),
-    valve_control=micro_dispenser.valve_control,
-)
 
-micro_dispenser.pressure_control.set_output_pressure(449)
-time.sleep(1.5)
-pprint.pprint(gantry._client.set_veab(150))
-time.sleep(3)
-pprint.pprint(gantry._client.get_veab())  # TODO: get_veab() is hanging
-
-sys.exit()
+if __name__ == "__main__":
+    main()

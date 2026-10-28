@@ -129,7 +129,9 @@ class TestCalibrationAccessors:
 
     def test_calibration_reflects_in_place_edits(self, dispenser_config):
         cfg = DeviceConfig(dispenser_config, "dispenser_1")
-        dispenser_config["components"]["dispenser_1"]["calibration"]["water"]["dispense"]["parameters"]["pressure"] = 999
+        dispenser_config["components"]["dispenser_1"]["calibration"]["water"]["dispense"]["parameters"]["pressure"] = (
+            999
+        )
         assert cfg.calibration["water"]["dispense"]["parameters"]["pressure"] == 999
 
     def test_liquid_classes(self, device_config):

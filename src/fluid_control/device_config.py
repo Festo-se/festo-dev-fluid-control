@@ -9,4 +9,4 @@ component-scoped values consumed by
 attributes, keeping configuration-parsing concerns out of the engine.
 """
 
-from configurator.device_config import InterfaceConfig, DeviceConfig
+from configurator.device_config import DeviceConfig, InterfaceConfig  # noqa: F401

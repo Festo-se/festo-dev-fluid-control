@@ -53,14 +53,12 @@ class TestTestConfigFile:
 
     def test_dispenser_component_present(self, test_config):
         assert any(
-            v.get("component_class") == "dispenser"
-            for v in test_config["component_config"]["components"].values()
+            v.get("component_class") == "dispenser" for v in test_config["component_config"]["components"].values()
         )
 
     def test_pipettor_component_present(self, test_config):
         assert any(
-            v.get("component_class") == "pipettor"
-            for v in test_config["component_config"]["components"].values()
+            v.get("component_class") == "pipettor" for v in test_config["component_config"]["components"].values()
         )
 
 
@@ -72,6 +70,7 @@ class TestTestConfigFile:
 class TestTestDispenserInit:
     def test_creates_dispenser_instance(self, test_dispenser):
         assert isinstance(test_dispenser, Dispenser)
+
 
 # ---------------------------------------------------------------------------
 # test dispenser — liquid classes and calibration
@@ -123,8 +122,8 @@ class TestTestDispenserOperations:
     @pytest.mark.parametrize("liquid_class", TEST_DISPENSER_LIQUID_CLASSES)
     def test_dispense_uses_70mbar_pressure(self, test_dispenser, liquid_class):
         test_dispenser.mock_pressure.set_output_pressure.reset_mock()
-        test_dispenser.mock_pressure.set_output_pressure.side_effect = (
-            lambda pressure: test_dispenser.mock_pressure.get_output_pressure.__class__
+        test_dispenser.mock_pressure.set_output_pressure.side_effect = lambda pressure: (
+            test_dispenser.mock_pressure.get_output_pressure.__class__
         )
         # Re-wire the pressure tracking side_effect after the reset
         state = {"p": 0}
@@ -137,10 +136,12 @@ class TestTestDispenserOperations:
         assert 70 in pressures_used
 
     def test_dispense_both_channels_simultaneously(self, test_dispenser):
-        test_dispenser.dispense({
-            1: {"volume": 100, "liquid_class": "water"},
-            2: {"volume": 150, "liquid_class": "water"},
-        })
+        test_dispenser.dispense(
+            {
+                1: {"volume": 100, "liquid_class": "water"},
+                2: {"volume": 150, "liquid_class": "water"},
+            }
+        )
         test_dispenser.mock_vaem.select_valve.assert_any_call(valve_id=1)
         test_dispenser.mock_vaem.select_valve.assert_any_call(valve_id=2)
 
@@ -201,11 +202,11 @@ class TestTestPipettorLiquidClasses:
     def test_dispense_timing_functions_built_for_calibration_keys_1_through_8(self, test_pipettor):
         """Calibration uses string keys '1'-'8' (channel-index notation)."""
         dispense = test_pipettor.valve_control_timing_functions["water"]["dispense"]
-        assert set(dispense.keys()) == {str(i) for i in range(1,9)}
+        assert set(dispense.keys()) == {str(i) for i in range(1, 9)}
 
     def test_aspirate_timing_functions_built_for_calibration_keys_1_through_8(self, test_pipettor):
         aspirate = test_pipettor.valve_control_timing_functions["water"]["aspirate"]
-        assert set(aspirate.keys()) == {str(i) for i in range(1,9)}
+        assert set(aspirate.keys()) == {str(i) for i in range(1, 9)}
 
     def test_water_dispense_flow_coeff_ch1_matches_config(self, test_pipettor):
         # channel_index_coeff=0.0038281, flow_offset=0.826181241
@@ -217,7 +218,7 @@ class TestTestPipettorLiquidClasses:
         slope_fn = test_pipettor.valve_control_timing_functions["water"]["aspirate"]["1"]["slope"]
         assert slope_fn(8) == pytest.approx(0.006111421 * 8 + 1.312909499)
 
-    @pytest.mark.parametrize("ch_key", [str(i) for i in range(1,9)])
+    @pytest.mark.parametrize("ch_key", [str(i) for i in range(1, 9)])
     def test_dispense_opening_time_positive_at_100ul(self, test_pipettor, ch_key):
         """Every channel must produce a positive opening time for a real dispense volume."""
         slope = test_pipettor.valve_control_timing_functions["water"]["dispense"][ch_key]["slope"](8)
@@ -255,10 +256,7 @@ class TestTestPipettorOperations:
 
         test_pipettor.dispense({1: {"volume": 100, "liquid_class": "ethylene-glycol10%"}})
 
-        pressures_used = [
-            c.kwargs["pressure"]
-            for c in test_pipettor.mock_pressure.set_output_pressure.call_args_list
-        ]
+        pressures_used = [c.kwargs["pressure"] for c in test_pipettor.mock_pressure.set_output_pressure.call_args_list]
         assert 70 in pressures_used
 
     def test_aspirate_ethylene_glycol_uses_correct_pressure(self, test_pipettor):
@@ -268,8 +266,5 @@ class TestTestPipettorOperations:
 
         test_pipettor.aspirate({1: {"volume": 100, "liquid_class": "ethylene-glycol10%"}})
 
-        pressures_used = [
-            c.kwargs["pressure"]
-            for c in test_pipettor.mock_pressure.set_output_pressure.call_args_list
-        ]
+        pressures_used = [c.kwargs["pressure"] for c in test_pipettor.mock_pressure.set_output_pressure.call_args_list]
         assert -100 in pressures_used

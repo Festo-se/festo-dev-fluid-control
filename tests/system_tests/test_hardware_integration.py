@@ -59,10 +59,12 @@ class TestHardwareDispenserOperations:
         test_hardware_dispenser.dispense({2: {"volume": 50, "liquid_class": "water"}})
 
     def test_dispense_both_channels_simultaneously(self, test_hardware_dispenser):
-        test_hardware_dispenser.dispense({
-            1: {"volume": 50, "liquid_class": "water"},
-            2: {"volume": 50, "liquid_class": "water"},
-        })
+        test_hardware_dispenser.dispense(
+            {
+                1: {"volume": 50, "liquid_class": "water"},
+                2: {"volume": 50, "liquid_class": "water"},
+            }
+        )
         assert test_hardware_dispenser.fluid_control_status.code == 0
 
     def test_dispense_ethylene_glycol_channel1(self, test_hardware_dispenser):
@@ -126,4 +128,3 @@ class TestHardwarePipettorOperations:
 #   3. Add tests modelled on the mocked ``TestEjectTips`` /
 #      ``TestPickupTips`` classes in ``tests/unit_tests/test_fluid_control_operations.py``.
 # ---------------------------------------------------------------------------
-

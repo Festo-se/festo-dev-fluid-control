@@ -77,8 +77,7 @@ class TestTimingFunctions:
         intercept = dispenser.valve_control_timing_functions["water"]["dispense"][ch]["intercept"](active_channels)
         opening_time = int(slope * volume + intercept)
         assert opening_time > 0, (
-            f"Opening time {opening_time} not positive for volume={volume}, "
-            f"active_channels={active_channels}"
+            f"Opening time {opening_time} not positive for volume={volume}, active_channels={active_channels}"
         )
 
 
@@ -198,4 +197,3 @@ class TestTimingModel:
         model = TimingModel()
         model.build({})
         assert model.functions == {}
-

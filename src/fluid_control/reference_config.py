@@ -10,7 +10,7 @@ configuration without a repository checkout. The configuration contains a
 addresses are placeholders and must be replaced before connecting to hardware.
 """
 
-from configurator.reference_config import example_config_path, load_example_config
+from configurator.reference_config import example_config_path, load_example_config  # noqa: F401
 
 
 # TODO: Remove this and write a helper in the examples that pulls this from a single repository of configs; singular source of truth so config mods happen once and are propagated

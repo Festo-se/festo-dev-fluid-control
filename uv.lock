@@ -368,6 +368,15 @@ name = "festo-dev-configurator"
 version = "0.1.0"
 source = { directory = "../festo-dev-configurator" }
 
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.17.2" },
+    { name = "ty", specifier = ">=0.0.91" },
+]
+
 [[package]]
 name = "festo-dev-fluid-control"
 version = "0.3.3"

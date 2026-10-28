@@ -15,14 +15,17 @@ Run with::
 Requires a reachable PGVA and VAEM at the addresses in the configuration.
 """
 
-from fluid_control import Pipettor, load_example_config
+from configurator import Configurator, Registry
+from fluid_control import example_config_path
+from fluid_control.configurator_adapter import fluid_control_registrations
 
 
 def main() -> None:
     """Aspirate 50 uL of water on channel 1, then dispense it."""
-    config = load_example_config()
-
-    with Pipettor(config=config, component_id="pipettor") as pipettor:
+    with Configurator.bootstrap(
+        example_config_path(), "pipettor", Registry.compose(*fluid_control_registrations())
+    ) as result:
+        pipettor = result.instance
         pipettor.aspirate({1: {"volume": 50.0, "liquid_class": "water"}})
         pipettor.dispense({1: {"volume": 50.0, "liquid_class": "water"}})
 

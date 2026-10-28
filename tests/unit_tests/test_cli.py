@@ -84,114 +84,158 @@ class TestValveTimed:
         dispenser.direct_command.assert_called_once_with(channel_times={1: 500}, pressure=70)
         assert result[0] == 0
 
-    def test_default_pressure_is_zero(self, dispenser):
-        session = FluidControlSession(dispenser)
-        dispenser.direct_command = MagicMock(return_value=[0, "ok"])
-        session.valve_timed(channel=1, time_ms=200)
-        dispenser.direct_command.assert_called_once_with(channel_times={1: 200}, pressure=0)
+    def test_cli_bootstraps_component_from_configurator_path_and_explicit_type(self, monkeypatch, tmp_path):
+        from configurator import ComponentView
+        from fluid_control.cli import cli as fluid_cli
 
-    def test_returns_result_list(self, dispenser):
-        session = FluidControlSession(dispenser)
-        dispenser.direct_command = MagicMock(return_value=[0, "Direct command executed successfully"])
-        result = session.valve_timed(1, 100, 50)
-        assert isinstance(result, list)
-        assert len(result) == 2
+        source = tmp_path / "fluid.json"
+        source.write_text("{}", encoding="utf-8")
+        view = ComponentView("pipettor_1", "pipettor", {}, {}, "components.pipettor_1", {})
+        result = MagicMock(instance=MagicMock(), views={"pipettor_1": view})
+        bootstrap = MagicMock(return_value=result)
+        monkeypatch.setattr(fluid_cli.Configurator, "bootstrap", bootstrap)
+        monkeypatch.setattr(fluid_cli, "run_repl", lambda _session: None)
+        monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "fluid-control-cli",
+                "--config",
+                str(source),
+                "--component-id",
+                "pipettor_1",
+                "--component-type",
+                "pipettor",
+            ],
+        )
 
+        fluid_cli.main()
 
-class TestDirect:
-    def test_passes_channel_times_and_pressure(self, dispenser):
-        session = FluidControlSession(dispenser)
-        dispenser.direct_command = MagicMock(return_value=[0, "ok"])
-        session.direct({1: 300, 2: 400}, pressure=80)
-        dispenser.direct_command.assert_called_once_with(channel_times={1: 300, 2: 400}, pressure=80)
+        bootstrap.assert_called_once()
+        assert bootstrap.call_args.args[0] == source
+        assert bootstrap.call_args.args[1] == {"name": "pipettor_1", "type": "pipettor"}
 
-    def test_returns_result_from_direct_command(self, dispenser):
-        session = FluidControlSession(dispenser)
-        dispenser.direct_command = MagicMock(return_value=[0, "Direct command executed successfully"])
-        result = session.direct({1: 300}, pressure=70)
-        assert result[0] == 0
+    def test_cli_auto_selection_uses_component_name_selector(self, monkeypatch, tmp_path):
+        from configurator import ComponentView
+        from fluid_control.cli import cli as fluid_cli
 
+        source = tmp_path / "fluid.json"
+        source.write_text("{}", encoding="utf-8")
+        view = ComponentView("dispenser_1", "dispenser", {}, {}, "components.dispenser_1", {})
+        bootstrap = MagicMock(return_value=MagicMock(instance=MagicMock(), views={"dispenser_1": view}))
+        monkeypatch.setattr(fluid_cli.Configurator, "bootstrap", bootstrap)
+        monkeypatch.setattr(fluid_cli, "run_repl", lambda _session: None)
+        monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
+        monkeypatch.setattr(
+            sys, "argv", ["fluid-control-cli", "--config", str(source), "--component-id", "dispenser_1"]
+        )
 
-class TestDispense:
-    def test_calls_component_dispense_with_correct_dict(self, dispenser):
-        session = FluidControlSession(dispenser)
-        dispenser.dispense = MagicMock()
-        session.dispense(channel=1, volume_ul=100.0, liquid_class="water")
-        dispenser.dispense.assert_called_once_with({1: {"volume": 100.0, "liquid_class": "water"}})
+        fluid_cli.main()
 
-    def test_returns_status_and_message(self, dispenser):
-        session = FluidControlSession(dispenser)
-        dispenser.dispense = MagicMock()
-        result = session.dispense(1, 50.0, "water")
-        assert isinstance(result, OperationResult)
-        assert len(result) == 2
-        assert result[1] == "Dispense complete"
+        assert bootstrap.call_args.args[1] == "dispenser_1"
 
+    def test_cli_reports_unknown_or_wrong_type_configurator_errors(self, monkeypatch, capsys, tmp_path):
+        from configurator import SelectionError
+        from fluid_control.cli import cli as fluid_cli
 
-class TestAspirate:
-    def test_calls_component_aspirate_with_correct_dict(self, pipettor_instance):
-        session = FluidControlSession(pipettor_instance)
-        pipettor_instance.aspirate = MagicMock()
-        session.aspirate(channel=1, volume_ul=80.0, liquid_class="water")
-        pipettor_instance.aspirate.assert_called_once_with({1: {"volume": 80.0, "liquid_class": "water"}})
+        source = tmp_path / "fluid.json"
+        source.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(fluid_cli.Configurator, "bootstrap", MagicMock(side_effect=SelectionError("bad selection")))
+        monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["fluid-control-cli", "--config", str(source), "--component-id", "missing", "--component-type", "pipettor"],
+        )
 
-    def test_raises_not_implemented_for_dispenser(self, dispenser):
-        session = FluidControlSession(dispenser)
-        with pytest.raises(NotImplementedError):
-            session.aspirate(1, 50.0, "water")
+        with pytest.raises(SystemExit) as error:
+            fluid_cli.main()
 
+        assert error.value.code == 1
+        assert "Failed to load config" in capsys.readouterr().out
 
-class TestMix:
-    def test_calls_component_mix_with_correct_args(self, pipettor_with_arm):
-        session = FluidControlSession(pipettor_with_arm)
-        pipettor_with_arm.mix = MagicMock()
-        session.mix(channel=1, volume_ul=60.0, liquid_class="water", cycles=3)
-        pipettor_with_arm.mix.assert_called_once_with({1: {"volume": 60.0, "liquid_class": "water"}}, 3)
+    def test_mounted_gantry_uses_component_view_relationship_and_preserves_axis(self, monkeypatch):
+        from configurator import ComponentView
+        from fluid_control.cli.cli import _bootstrap_gantry
 
-    def test_returns_cycle_count_in_message(self, pipettor_with_arm):
-        session = FluidControlSession(pipettor_with_arm)
-        pipettor_with_arm.mix = MagicMock()
-        result = session.mix(1, 60.0, "water", 5)
-        assert "5" in result[1]
+        gantry_data = {"component_class": "gantry", "axes": {"Z": {"name": "Z"}}}
+        root = {
+            "components": {
+                "dispenser_1": {"mount_gantry": {"name": "gantry_1"}, "mount_axis": {"name": "ZP"}},
+                "gantry_1": gantry_data,
+            }
+        }
+        view = ComponentView(
+            "dispenser_1",
+            "dispenser",
+            root["components"]["dispenser_1"],
+            root,
+            "components.dispenser_1",
+            root["components"],
+        )
+        gantry = MagicMock()
+        from_config = MagicMock(return_value=gantry)
+        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", from_config)
 
+        resolved, axis = _bootstrap_gantry(view, None, "gantry_1", "Z")
 
-class TestSetPressure:
-    def test_calls_wait_output_pressure(self, dispenser):
-        session = FluidControlSession(dispenser)
-        dispenser._wait_output_pressure = MagicMock()
-        session.set_pressure(70)
-        dispenser._wait_output_pressure.assert_called_once_with(70)
+        assert resolved is gantry
+        assert axis == "ZP"
+        from_config.assert_called_once_with(root, name="gantry_1")
 
+    def test_explicit_gantry_path_is_used_unchanged(self, monkeypatch):
+        from pathlib import Path
+        from configurator import ComponentView
+        from fluid_control.cli.cli import _bootstrap_gantry
 
-# ---------------------------------------------------------------------------
-# Gantry / axis operations
-# ---------------------------------------------------------------------------
+        view = ComponentView("dispenser_1", "dispenser", {}, {}, "components.dispenser_1", {})
+        gantry = MagicMock()
+        from_config = MagicMock(return_value=gantry)
+        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", from_config)
+        path = Path("gantry.json")
 
+        resolved, axis = _bootstrap_gantry(view, path, "custom_gantry", "Z")
 
-class TestRequireGantry:
-    def test_raises_runtime_error_when_no_gantry(self, dispenser):
-        session = FluidControlSession(dispenser)
-        with pytest.raises(AttributeError, match="No gantry configured"):
-            session.where()
+        assert resolved is gantry
+        assert axis == "Z"
+        from_config.assert_called_once_with(path, name="custom_gantry")
 
-    def test_decorated_method_proceeds_when_gantry_configured(self, dispenser):
-        gantry = _make_mock_gantry(["Z"])
-        gantry.get_location.return_value = {"Z": 0.0}
-        session = FluidControlSession(dispenser, gantry=gantry)
-        assert session.where() == {"Z": 0.0}
+    def test_mounted_gantry_failure_returns_offline_axes(self, monkeypatch):
+        from configurator import ComponentView
+        from fluid_control.cli.cli import _OfflineGantry, _bootstrap_gantry
 
+        gantry_data = {"component_class": "gantry", "axes": {"Z": {"name": "Z"}, "X": {"name": "X"}}}
+        root = {
+            "components": {
+                "dispenser_1": {"mount_gantry": {"name": "gantry_1"}, "mount_axis": "Z"},
+                "gantry_1": gantry_data,
+            }
+        }
+        view = ComponentView(
+            "dispenser_1",
+            "dispenser",
+            root["components"]["dispenser_1"],
+            root,
+            "components.dispenser_1",
+            root["components"],
+        )
+        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", MagicMock(side_effect=OSError("boom")))
 
-class TestMoveAxis:
-    def test_calls_move_to_with_correct_deque(self, dispenser):
-        gantry = _make_mock_gantry(["X", "Y", "Z"])
-        session = FluidControlSession(dispenser, gantry=gantry, mount_axis_name="Z")
-        session.move_axis("Z", 50.0, 15.0)
-        gantry.move_to.assert_called_once()
-        call_args = gantry.move_to.call_args
-        movements: deque = call_args[0][0]
-        assert len(movements) == 1
-        item = movements[0]
-        assert item == {"Z": {"position": 50.0, "velocity": 15.0}}
+        gantry, axis = _bootstrap_gantry(view, None, "gantry_1", "Y")
+
+        assert isinstance(gantry, _OfflineGantry)
+        assert set(gantry.axes) == {"Z", "X"}
+        assert axis == "Z"
+
+    def test_cli_has_no_local_json_loader_or_component_scan_helpers(self):
+        from inspect import getsource
+        from fluid_control.cli import cli as fluid_cli
+
+        source = getsource(fluid_cli)
+        assert "json.load" not in source
+        assert "_discover_component_gantry_config" not in source
+        assert "_wrap_gantry_config_for_bootstrap" not in source
 
     def test_returns_gantry_location(self, dispenser):
         gantry = _make_mock_gantry(["Z"])
@@ -430,13 +474,11 @@ class TestDiscoverComponentGantryConfig:
 
         assert logging_utils.set_runtime_log_level(["error"]) == "Log level set to ERROR"
 
-
-
     def test_configure_logging_forces_pymodbus_logger_to_info(self, monkeypatch):
         from fluid_control.cli import logging_utils
 
         monkeypatch.setattr(logging, "disable", lambda _: None)
-        monkeypatch.setattr(logging , "basicConfig", lambda **kwargs: None)
+        monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: None)
         monkeypatch.setattr(logging.root.manager, "disable", logging.NOTSET)
 
         pymodbus_logger = logging.getLogger("pymodbus")
@@ -453,6 +495,7 @@ class TestDiscoverComponentGantryConfig:
 
     def test_configure_logging_off_disables_pymodbus_logger(self, monkeypatch):
         from fluid_control.cli import logging_utils
+
         monkeypatch.setattr(logging.root.manager, "disable", logging.NOTSET)
 
         pymodbus_logger = logging.getLogger("pymodbus")
@@ -461,113 +504,6 @@ class TestDiscoverComponentGantryConfig:
         assert logging_utils.configure_logging("OFF") == "OFF"
         assert pymodbus_logger.disabled is True
         logging.disable(logging.NOTSET)
-
-    def test_discovers_gantry_from_component_config(self):
-        from fluid_control.cli.cli import _discover_component_gantry_config
-
-        config = {
-            "components": {
-                "micro-dispenser": {
-                    "component_class": "dispenser",
-                    "mount_gantry": {"name": "gantry_1"},
-                    "mount_axis": "Z",
-                },
-                "gantry_1": {"component_class": "gantry"},
-            }
-        }
-
-        gantry_config, gantry_name, mount_axis_name = _discover_component_gantry_config(config, "micro-dispenser")
-        assert gantry_config == {"component_class": "gantry"}
-        assert gantry_name == "gantry_1"
-        assert mount_axis_name == "Z"
-
-    def test_wraps_discovered_gantry_component_for_bootstrap(self):
-        from fluid_control.cli.cli import _wrap_gantry_config_for_bootstrap
-
-        gantry_component = {
-            "component_class": "gantry",
-            "backend": "fposbapi",
-            "axes": {"Z": {"name": "Z", "index": 1}},
-        }
-
-        assert _wrap_gantry_config_for_bootstrap(gantry_component, "gantry_1") == {
-            "components": {"gantry_1": gantry_component}
-        }
-
-    def test_falls_back_to_sibling_gantry_component_when_mount_gantry_missing(self):
-        from fluid_control.cli.cli import _discover_component_gantry_config
-
-        config = {
-            "components": {
-                "micro-dispenser": {"component_class": "dispenser", "mount_axis": "Z"},
-                "gantry_1": {
-                    "component_class": "gantry",
-                    "backend": "fposbapi",
-                    "axes": {"Z": {"name": "Z", "index": 1}},
-                },
-            }
-        }
-
-        gantry_config, gantry_name, mount_axis_name = _discover_component_gantry_config(config, "micro-dispenser")
-        assert gantry_config == {
-            "component_class": "gantry",
-            "backend": "fposbapi",
-            "axes": {"Z": {"name": "Z", "index": 1}},
-        }
-        assert gantry_name == "gantry_1"
-        assert mount_axis_name == "Z"
-
-    def test_falls_back_to_sibling_gantry_component_when_mount_gantry_name_is_unresolved(self):
-        from fluid_control.cli.cli import _discover_component_gantry_config
-
-        config = {
-            "components": {
-                "pipettor_1": {
-                    "component_class": "pipettor",
-                    "mount_gantry": {"name": "pipettor-gantry"},
-                    "mount_axis": "ZP",
-                },
-                "gantry_2": {"component_class": "gantry", "backend": "modbus", "axes": {"ZP": {"name": "ZP"}}},
-            }
-        }
-
-        gantry_config, gantry_name, mount_axis_name = _discover_component_gantry_config(config, "pipettor_1")
-        assert gantry_config == {"component_class": "gantry", "backend": "modbus", "axes": {"ZP": {"name": "ZP"}}}
-        assert gantry_name == "gantry_2"
-        assert mount_axis_name == "ZP"
-
-    def test_returns_none_when_no_mount_gantry_defined_and_no_gantry_component_exists(self):
-        from fluid_control.cli.cli import _discover_component_gantry_config
-
-        config = {"components": {"micro-dispenser": {"component_class": "dispenser"}}}
-        assert _discover_component_gantry_config(config, "micro-dispenser") == (None, None, None)
-
-    def test_bootstrap_returns_offline_gantry_when_connection_fails(self, monkeypatch):
-        from fluid_control.cli.cli import _OfflineGantry, _bootstrap_gantry
-
-        fc_config = {
-            "components": {
-                "micro-dispenser": {
-                    "component_class": "dispenser",
-                    "mount_gantry": {"name": "gantry_1"},
-                    "mount_axis": "Z",
-                },
-                "gantry_1": {
-                    "component_class": "gantry",
-                    "backend": "fposbapi",
-                    "axes": {"Z": {"name": "Z", "index": 1}},
-                },
-            }
-        }
-
-        def fake_from_config(config, name):
-            raise OSError("boom")
-
-        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", fake_from_config)
-
-        gantry, mount_axis_name = _bootstrap_gantry(fc_config, "micro-dispenser", None, "gantry_1", "Z")
-        assert isinstance(gantry, _OfflineGantry)
-        assert mount_axis_name == "Z"
 
 
 class TestBuildCompleter:

@@ -20,12 +20,13 @@ Run with::
 Requires reachable hardware and the ``festo-dev-applied-motion`` package.
 """
 
-import json
 from pathlib import Path
 
 from applied_motion import Gantry
+from configurator import Configurator, Registry
 
 from fluid_control import Dispenser, PressureControl
+from fluid_control.configurator_adapter import fluid_control_registrations
 
 # Full instrument config at the repository root (defines gantry + both dispensers).
 _CONFIG_PATH = Path(__file__).resolve().parents[2] / "test-fluid-configs.json"
@@ -33,26 +34,26 @@ _CONFIG_PATH = Path(__file__).resolve().parents[2] / "test-fluid-configs.json"
 
 def main() -> None:
     """Dispense on the macro-dispenser using a shared VAEM and an external regulator."""
-    with _CONFIG_PATH.open("r", encoding="utf-8") as fh:
-        config = json.load(fh)
+    registry = Registry.compose(*fluid_control_registrations())
+    with Configurator.bootstrap(_CONFIG_PATH, "micro-dispenser", registry) as result:
+        micro_view = result.views["micro-dispenser"]
+        macro_view = micro_view.require_relationship("macro-dispenser")
 
-    components = config["component_config"]
+        # The gantry provides the VEAB pressure regulator.
+        gantry = Gantry.from_config(micro_view.root)
 
-    # The gantry provides the VEAB pressure regulator.
-    gantry = Gantry.from_config(components)
+        # The micro-dispenser owns the VAEM connection.
+        micro_dispenser = result.instance
 
-    # The micro-dispenser owns the VAEM connection.
-    micro_dispenser = Dispenser(config=components, component_id="micro-dispenser")
-
-    # The macro-dispenser re-uses the VAEM and regulates pressure via the gantry.
-    macro_dispenser = Dispenser(
-        config=components,
-        component_id="macro-dispenser",
-        pressure_control=PressureControl(gantry),
-        valve_control=micro_dispenser.valve_control,
-    )
-
-    macro_dispenser.dispense({2: {"volume": 50.0, "liquid_class": "water"}})
+        # The macro-dispenser re-uses the VAEM and regulates pressure via the gantry.
+        macro_dispenser = Dispenser(
+            config={"components": {macro_view.name: macro_view.data}},
+            component_id=macro_view.name,
+            pressure_control=PressureControl(gantry),
+            valve_control=micro_dispenser.valve_control,
+        )
+        macro_dispenser.dispense({2: {"volume": 50.0, "liquid_class": "water"}})
+        macro_dispenser.close()
 
 
 if __name__ == "__main__":

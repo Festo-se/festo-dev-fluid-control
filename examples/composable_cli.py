@@ -25,17 +25,16 @@ Run it (requires the ``cli`` extra and a valid config)::
 """
 
 import argparse
-import json
 from pathlib import Path
 
 from applied_motion.applied_motion import Gantry
+from configurator import Configurator, Registry
 
-from fluid_control import Dispenser, Pipettor
 from fluid_control.cli.commands import build_gantry_group, build_group
 from fluid_control.cli.compose.core import CommandGroup
 from fluid_control.cli.compose.repl import run_repl
 from fluid_control.cli.session import FluidControlSession
-from fluid_control.fluid_control import PressureOverLiquidControl
+from fluid_control.configurator_adapter import fluid_control_registrations
 
 
 def build_liquid_handling_cli(session: FluidControlSession) -> CommandGroup:
@@ -61,26 +60,6 @@ def build_liquid_handling_cli(session: FluidControlSession) -> CommandGroup:
     return root
 
 
-def _load_component(config: dict, component_id: str) -> PressureOverLiquidControl:
-    """
-    Instantiate the fluid-control component named in the config.
-
-    Args:
-        config: The parsed fluid-control configuration dictionary.
-        component_id: The component ID key to instantiate.
-
-    Returns:
-        A [`PressureOverLiquidControl`][fluid_control.fluid_control.PressureOverLiquidControl]
-        instance (Dispenser or Pipettor) per the config's ``component_class``.
-
-    """
-    parsed = config.get("component_config", config)
-    component_class = parsed["components"][component_id].get("component_class", "dispenser")
-    if component_class == "pipettor":
-        return Pipettor(config=config, component_id=component_id)
-    return Dispenser(config=config, component_id=component_id)
-
-
 def main() -> None:
     """Entry point for the composable liquid-handling CLI example."""
     parser = argparse.ArgumentParser(description="Composable liquid-handling CLI example.")
@@ -91,16 +70,15 @@ def main() -> None:
     parser.add_argument("--mount-axis", default="Z", help="Mount-arm axis name (default: Z).")
     args = parser.parse_args()
 
-    with args.config.open() as fh:
-        config = json.load(fh)
-    component = _load_component(config, args.component_id)
+    registry = Registry.compose(*fluid_control_registrations())
+    with Configurator.bootstrap(args.config, args.component_id, registry) as result:
+        component = result.instance
+        gantry = None
+        if args.gantry_config is not None:
+            gantry = Gantry.from_config(args.gantry_config, name=args.gantry_id)
 
-    gantry = None
-    if args.gantry_config is not None:
-        gantry = Gantry.from_config(args.gantry_config, name=args.gantry_id)
-
-    session = FluidControlSession(component, gantry=gantry, mount_axis_name=args.mount_axis)
-    run_repl(build_liquid_handling_cli(session), prompt="lhs> ")
+        session = FluidControlSession(component, gantry=gantry, mount_axis_name=args.mount_axis)
+        run_repl(build_liquid_handling_cli(session), prompt="lhs> ")
 
 
 if __name__ == "__main__":
