@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from types import SimpleNamespace
 
 import pytest
-from configurator import ComponentView, Configurator, Registration, Registry
+from configurator import ComponentView, Configurator, Registration, Registry, ValidationError
 
 from fluid_control.aspirator import Aspirator
 from fluid_control.configurator_adapter import (
@@ -72,6 +72,36 @@ def test_registration_metadata_and_dispatch(dispenser_config, eight_channel_pipe
     assert registry.get(dispenser_view).builder is build_dispenser_from_view
     assert registry.get(pipettor_view).builder is build_pipettor_from_view
     assert all(callable(registration.cleanup) for registration in registrations)
+    assert all(callable(registration.validator) for registration in registrations)
+
+
+def test_pipettor_builder_passes_explicit_runtime_axes(mocker, eight_channel_pipettor_config):
+    mount_arm = MagicMock()
+    disabled = (MagicMock(), MagicMock())
+    pipettor = MagicMock(spec=Pipettor)
+    builder = mocker.patch("fluid_control.configurator_adapter.Pipettor", return_value=pipettor)
+
+    build_pipettor_from_view(
+        _view(eight_channel_pipettor_config, "pipettor_1", "pipettor"),
+        options={"mount_arm": mount_arm, "disable_axes": disabled},
+    )
+
+    assert builder.call_args.kwargs["mount_arm"] is mount_arm
+    assert builder.call_args.kwargs["disable_axes"] == disabled
+
+
+def test_fluid_registration_preflight_rejects_missing_calibration(mocker, dispenser_config):
+    del dispenser_config["components"]["dispenser_1"]["calibration"]
+    factory = mocker.patch("fluid_control.configurator_adapter.Dispenser")
+
+    with pytest.raises(ValidationError):
+        Configurator.bootstrap(
+            dispenser_config,
+            "dispenser_1",
+            Registry.compose(*fluid_control_registrations()),
+        )
+
+    factory.assert_not_called()
 
 
 def test_bootstrap_result_closes_builder_created_controller_connections(mocker, dispenser_config):

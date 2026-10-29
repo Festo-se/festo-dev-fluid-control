@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any, cast
 
 from configurator import COMPAT, ComponentView, Registration, ValidationMode
+from applied_motion import Axis
 
 from fluid_control.aspirator import Aspirator
 from fluid_control.device_config import DeviceConfig
@@ -62,6 +63,27 @@ def _validate_component_view(view: ComponentView, expected_type: str) -> DeviceC
     return DeviceConfig({"components": {view.name: cast(dict[str, Any], view.data)}}, view.name)
 
 
+def validate_fluid_view(view: ComponentView, **_: Any) -> None:
+    """Validate a selected fluid component without opening controllers.
+
+    Args:
+        view: Selected configurator component view.
+
+    Raises:
+        TypeError: If the selected view is malformed.
+        ValueError: If the selected component type is unsupported.
+        KeyError: If required fluid configuration fields are absent.
+    """
+    if view.component_type not in {"dispenser", "pipettor", "aspirator"}:
+        raise ValueError(f"Unsupported fluid component type: {view.component_type!r}")
+    device_config = _validate_component_view(view, view.component_type)
+    device_config.build_pressures()
+    for liquid_class, processes in device_config.calibration.items():
+        for process in processes:
+            device_config.flow_coefficients(liquid_class, process)
+            device_config.volume_offset_coefficients(liquid_class, process)
+
+
 def build_dispenser_from_view(
     view: ComponentView,
     *,
@@ -112,10 +134,23 @@ def build_pipettor_from_view(
         TypeError: If the view does not satisfy the component-view contract.
         ValueError: If the view is not a pipettor component.
     """
-    del mode, options, resolver
+    del mode, resolver
     device_config = _validate_component_view(view, "pipettor")
     logger.debug("Building pipettor %r from selected configurator view", view.name)
-    return Pipettor(config={"components": {view.name: view.data}}, component_id=view.name, device_config=device_config)
+    runtime_options = dict(options or {})
+    mount_arm: Axis | None = None
+    disable_axes: tuple[Axis, ...] = ()
+    if "mount_arm" in runtime_options:
+        mount_arm = cast(Axis | None, runtime_options["mount_arm"])
+    if "disable_axes" in runtime_options:
+        disable_axes = cast(tuple[Axis, ...], tuple(runtime_options["disable_axes"]))
+    return Pipettor(
+        config={"components": {view.name: view.data}},
+        component_id=view.name,
+        device_config=device_config,
+        mount_arm=mount_arm,
+        disable_axes=disable_axes,
+    )
 
 
 def build_aspirator_from_view(
@@ -153,7 +188,11 @@ def dispenser_registration() -> Registration:
         Registration binding ``dispenser`` views to the dispenser builder.
     """
     return Registration(
-        name="dispenser", component_type="dispenser", builder=build_dispenser_from_view, cleanup=_cleanup_fluid_control
+        name="dispenser",
+        component_type="dispenser",
+        builder=build_dispenser_from_view,
+        validator=validate_fluid_view,
+        cleanup=_cleanup_fluid_control,
     )
 
 
@@ -164,7 +203,11 @@ def pipettor_registration() -> Registration:
         Registration binding ``pipettor`` views to the pipettor builder.
     """
     return Registration(
-        name="pipettor", component_type="pipettor", builder=build_pipettor_from_view, cleanup=_cleanup_fluid_control
+        name="pipettor",
+        component_type="pipettor",
+        builder=build_pipettor_from_view,
+        validator=validate_fluid_view,
+        cleanup=_cleanup_fluid_control,
     )
 
 
@@ -175,7 +218,11 @@ def aspirator_registration() -> Registration:
         Registration binding ``aspirator`` views to the aspirator builder.
     """
     return Registration(
-        name="aspirator", component_type="aspirator", builder=build_aspirator_from_view, cleanup=_cleanup_fluid_control
+        name="aspirator",
+        component_type="aspirator",
+        builder=build_aspirator_from_view,
+        validator=validate_fluid_view,
+        cleanup=_cleanup_fluid_control,
     )
 
 
