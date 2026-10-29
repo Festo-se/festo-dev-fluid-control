@@ -1,6 +1,6 @@
 [project]
 name = "festo-dev-fluid-control"
-version = "0.3.3"
+version = "0.4.0"
 authors = [
     { name = "Kyle Wardlow", email = "kyle.wardlow@festo.com" },
     { name = "Joshua Dang", email = "joshua.dang@festo.com" },
@@ -21,13 +21,13 @@ keywords = [
     "Automation",
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "MIT"
 dependencies = [
     "festo-pgva>=0.2.1",
     "festo-vaem>=0.3",
     "festo-dev-applied-motion>=0.3.3",
-    "festo-dev-configurator>=0.1.0,<0.2.0",
+    "festo-dev-configurator>=0.1.0",
 ]
 
 [project.urls]
@@ -87,7 +87,7 @@ cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true } }]
 module-name = "fluid_control"
 
 [tool.uv.sources]
-festo-dev-applied-motion = { git = "https://github.com/Festo-se/festo-dev-applied-motion" }
+festo-dev-applied-motion = { path = "../festo-dev-applied-motion" }
 festo-dev-configurator = { path = "../festo-dev-configurator" }
 
 [tool.ty.src]
@@ -129,4 +129,11 @@ indent-style = "space"
 quote-style = "double"
 line-ending = "auto"
 docstring-code-format = true
-exclude = [".git", "__pycache__", ".vscode", ".venv", ".pytest_cache", "**/tests/**"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".vscode",
+    ".venv",
+    ".pytest_cache",
+    "**/tests/**",
+]
