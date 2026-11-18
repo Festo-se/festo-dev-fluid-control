@@ -1,14 +1,13 @@
 """Manual fluid-control hardware smoke test."""
 
 import pprint
+import json
 import time
 from pathlib import Path
 import logging
 
 from applied_motion import Gantry
-from configurator import Configurator, Registry
 from fluid_control import Dispenser, PressureControl
-from fluid_control.configurator_adapter import fluid_control_registrations
 
 
 def main() -> None:
@@ -21,20 +20,18 @@ def main() -> None:
     )
 
     fixture_path = Path(__file__).parent / "src" / "fluid_control" / "data" / "test-fluid-configs.json"
-    registry = Registry.compose(*fluid_control_registrations())
-    with Configurator.bootstrap(fixture_path, "micro-dispenser", registry) as result:
-        micro_view = result.views["micro-dispenser"]
-        macro_view = micro_view.require_relationship("macro-dispenser")
-        gantry = Gantry.from_config(micro_view.root)
-        micro_dispenser = result.instance
+    config = json.loads(fixture_path.read_text(encoding="utf-8"))
+    normalized = config.get("component_config", config)
+    with Dispenser(config=config, component_id="micro-dispenser") as micro_dispenser:
+        gantry = Gantry(config=config, registry=micro_dispenser.registry)
         macro_dispenser = Dispenser(
-            config={"components": {macro_view.name: macro_view.data}},
-            component_id=macro_view.name,
+            config={"components": {"macro-dispenser": normalized["components"]["macro-dispenser"]}},
+            component_id="macro-dispenser",
             pressure_control=PressureControl(gantry),
             valve_control=micro_dispenser.valve_control,
         )
 
-        pprint.pprint(micro_view.root)
+        pprint.pprint(normalized)
         micro_dispenser.pressure_control.set_output_pressure(449)
         time.sleep(1.5)
         pprint.pprint(gantry._client.set_veab(150))

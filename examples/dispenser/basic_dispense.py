@@ -15,17 +15,12 @@ Requires a reachable PGVA and VAEM at the addresses in the configuration. Replac
 ``json.load(open("micro-dispenser-config.json"))``) before running on hardware.
 """
 
-from configurator import Configurator, Registry
-from fluid_control import example_config_path
-from fluid_control.configurator_adapter import fluid_control_registrations
+from fluid_control import Dispenser, example_config_path
 
 
 def main() -> None:
     """Dispense 25 uL of water on channel 1."""
-    with Configurator.bootstrap(
-        example_config_path(), "micro-dispenser", Registry.compose(*fluid_control_registrations())
-    ) as result:
-        dispenser = result.instance
+    with Dispenser(config=example_config_path(), component_id="micro-dispenser") as dispenser:
         dispenser.dispense({1: {"volume": 25.0, "liquid_class": "water"}})
 
 

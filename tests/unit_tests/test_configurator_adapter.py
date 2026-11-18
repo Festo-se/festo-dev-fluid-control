@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from types import SimpleNamespace
 
 import pytest
-from configurator import ComponentView, Configurator, Registration, Registry, ValidationError
+from configurator import ComponentView, Configurator, Registration, Registry, RuntimeRegistry, ValidationError
 
 from fluid_control.aspirator import Aspirator
 from fluid_control.configurator_adapter import (
@@ -90,6 +90,127 @@ def test_pipettor_builder_passes_explicit_runtime_axes(mocker, eight_channel_pip
     assert builder.call_args.kwargs["disable_axes"] == disabled
 
 
+def test_pipettor_builder_resolves_configured_motion_axes_from_gantry_dependency(
+    mocker, eight_channel_pipettor_config
+):
+    from types import SimpleNamespace
+
+    component = eight_channel_pipettor_config["components"]["pipettor_1"]
+    component["mount_gantry"] = {"name": "gantry_2"}
+    component["mount_axis"] = {"name": "ZP"}
+    component["axes_disable_for_pickup"] = ["X", "Y"]
+    axes = {name: MagicMock(name=name) for name in ("X", "Y", "ZP")}
+    gantry = SimpleNamespace(axes=axes)
+    pipettor = MagicMock(spec=Pipettor)
+    builder = mocker.patch("fluid_control.configurator_adapter.Pipettor", return_value=pipettor)
+
+    build_pipettor_from_view(
+        _view(eight_channel_pipettor_config, "pipettor_1", "pipettor"),
+        dependencies={"gantry_2": gantry},
+    )
+
+    assert builder.call_args.kwargs["mount_arm"] is axes["ZP"]
+    assert builder.call_args.kwargs["disable_axes"] == (axes["X"], axes["Y"])
+
+
+def test_pipettor_registration_declares_same_source_gantry_dependency(eight_channel_pipettor_config):
+    component = eight_channel_pipettor_config["components"]["pipettor_1"]
+    component["mount_gantry"] = {"name": "gantry_2"}
+    eight_channel_pipettor_config["components"]["gantry_2"] = {"component_class": "gantry", "axes": {}}
+
+    dependencies = pipettor_registration().component_dependencies(
+        _view(eight_channel_pipettor_config, "pipettor_1", "pipettor")
+    )
+
+    assert [(dependency.name, dependency.component_type) for dependency in dependencies] == [("gantry_2", "gantry")]
+
+
+def test_config_backed_pipettor_builds_related_gantry_and_exposes_shared_runtime(
+    monkeypatch, mocker, eight_channel_pipettor_config, dispenser_config
+):
+    from applied_motion.configurator_adapter import gantry_registration
+
+    class EntryPoint:
+        def __init__(self, name, provider):
+            self.name = name
+            self._provider = provider
+
+        def load(self):
+            return self._provider
+
+    class EntryPoints(list):
+        def select(self, *, group):
+            assert group == RuntimeRegistry.entry_point_group
+            return self
+
+    component = eight_channel_pipettor_config["components"]["pipettor_1"]
+    component["mount_gantry"] = {"name": "gantry_2"}
+    component["mount_axis"] = {"name": "ZP"}
+    component["axes_disable_for_pickup"] = ["X", "Y"]
+    axes = {name: MagicMock(name=name) for name in ("X", "Y", "ZP")}
+    gantry_component = {
+        "component_class": "gantry",
+        "backend": "modbus",
+        "axes": {name: {"name": name, "ip": f"192.168.0.{index}"} for index, name in enumerate(axes, 10)},
+        "axis_order": ["X", "Y", "ZP"],
+    }
+    config = {
+        "components": {
+            **eight_channel_pipettor_config["components"],
+            **dispenser_config["components"],
+            "gantry_2": gantry_component,
+        }
+    }
+    providers = EntryPoints(
+        [
+            EntryPoint("pipettor", pipettor_registration),
+            EntryPoint("dispenser", dispenser_registration),
+            EntryPoint("gantry", gantry_registration),
+        ]
+    )
+    monkeypatch.setattr("configurator.kernel.entry_points", lambda: providers)
+    mocker.patch("fluid_control.fluid_control.PGVA", return_value=MagicMock())
+    mocker.patch("fluid_control.fluid_control.VAEM", return_value=MagicMock(get_status=MagicMock(return_value={"Readiness": 0})))
+    mocker.patch("fluid_control.fluid_control.sleep")
+    mocker.patch("applied_motion.gantry_factory.EdconAxis", autospec=True, side_effect=list(axes.values()))
+
+    pipettor = Pipettor(config=config, component_id="pipettor_1")
+
+    assert isinstance(pipettor.registry, RuntimeRegistry)
+    assert pipettor.registry.components == ("gantry_2", "pipettor_1")
+    assert pipettor.mount_arm is axes["ZP"]
+    assert pipettor.disable_axes == (axes["X"], axes["Y"])
+
+    pressure_control = MagicMock()
+    valve_control = MagicMock()
+    dispenser = Dispenser(
+        config=config,
+        component_id="dispenser_1",
+        registry=pipettor.registry,
+        pressure_control=pressure_control,
+        valve_control=valve_control,
+    )
+
+    assert dispenser.registry is pipettor.registry
+    assert dispenser._runtime_registry is pipettor.registry
+    assert dispenser.pressure_control is pressure_control
+    assert dispenser.valve_control is valve_control
+    assert pipettor.registry.components == ("gantry_2", "pipettor_1", "dispenser_1")
+    with pytest.raises(ValueError, match="already initialized with a different pressure_control"):
+        Dispenser(
+            config=config,
+            component_id="dispenser_1",
+            registry=pipettor.registry,
+            pressure_control=MagicMock(),
+        )
+    dispenser.close()
+    assert pipettor.registry.closed is False
+    pipettor.close()
+    assert pipettor.registry.closed is True
+    pressure_control.close.assert_not_called()
+    valve_control.close.assert_not_called()
+
+
 def test_fluid_registration_preflight_rejects_missing_calibration(mocker, dispenser_config):
     del dispenser_config["components"]["dispenser_1"]["calibration"]
     factory = mocker.patch("fluid_control.configurator_adapter.Dispenser")
@@ -149,6 +270,31 @@ def test_builders_return_all_runtime_classes(mocker, dispenser_config, eight_cha
     assert isinstance(build_dispenser_from_view(dispenser_view), Dispenser)
     assert isinstance(build_pipettor_from_view(pipettor_view), Pipettor)
     assert isinstance(build_aspirator_from_view(aspirator_view), Aspirator)
+
+
+def test_all_fluid_builders_use_injected_controller_options(mocker, dispenser_config, eight_channel_pipettor_config):
+    _mock_controllers(mocker)
+    dispenser_view = _view(dispenser_config, "dispenser_1", "dispenser")
+    pipettor_view = _view(eight_channel_pipettor_config, "pipettor_1", "pipettor")
+    aspirator_component = dict(dispenser_config["components"]["dispenser_1"])
+    aspirator_component["component_class"] = "aspirator"
+    aspirator_config = {"components": {"aspirator_1": aspirator_component}}
+    aspirator_view = _view(aspirator_config, "aspirator_1", "aspirator")
+
+    for builder, view in (
+        (build_dispenser_from_view, dispenser_view),
+        (build_pipettor_from_view, pipettor_view),
+        (build_aspirator_from_view, aspirator_view),
+    ):
+        pressure_control = MagicMock()
+        valve_control = MagicMock()
+        instance = builder(
+            view,
+            options={"pressure_control": pressure_control, "valve_control": valve_control},
+        )
+
+        assert instance.pressure_control is pressure_control
+        assert instance.valve_control is valve_control
 
 
 def test_bootstrap_selected_view_preserves_device_config_compatibility(mocker, dispenser_config):

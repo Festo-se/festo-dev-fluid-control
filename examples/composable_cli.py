@@ -25,16 +25,16 @@ Run it (requires the ``cli`` extra and a valid config)::
 """
 
 import argparse
+import json
 from pathlib import Path
 
-from applied_motion.applied_motion import Gantry
-from configurator import Configurator, Registry
+from applied_motion import Gantry
 
+from fluid_control import Aspirator, Dispenser, Pipettor
 from fluid_control.cli.commands import build_gantry_group, build_group
 from fluid_control.cli.compose.core import CommandGroup
 from fluid_control.cli.compose.repl import run_repl
 from fluid_control.cli.session import FluidControlSession
-from fluid_control.configurator_adapter import fluid_control_registrations
 
 
 def build_liquid_handling_cli(session: FluidControlSession) -> CommandGroup:
@@ -70,12 +70,24 @@ def main() -> None:
     parser.add_argument("--mount-axis", default="Z", help="Mount-arm axis name (default: Z).")
     args = parser.parse_args()
 
-    registry = Registry.compose(*fluid_control_registrations())
-    with Configurator.bootstrap(args.config, args.component_id, registry) as result:
-        component = result.instance
+    config = json.loads(args.config.read_text(encoding="utf-8"))
+    # TODO: All that should be necessary is the path right?
+    normalized = config.get("component_config", config)
+    component_config = normalized["components"][args.component_id]
+    component_type = component_config.get("component_class", component_config.get("component_type"))
+    component_class = {"dispenser": Dispenser, "pipettor": Pipettor, "aspirator": Aspirator}.get(component_type)
+    if component_class is None:
+        parser.error(f"Unsupported component type for {args.component_id!r}: {component_type!r}")
+
+    with component_class(config=config, component_id=args.component_id) as component:
         gantry = None
         if args.gantry_config is not None:
-            gantry = Gantry.from_config(args.gantry_config, name=args.gantry_id)
+            gantry = Gantry.from_config(args.gantry_config, name=args.gantry_id, registry=component.registry)
+        else:
+            mount_gantry = component_config.get("mount_gantry")
+            gantry_name = mount_gantry.get("name") if isinstance(mount_gantry, dict) else None
+            if isinstance(gantry_name, str) and gantry_name:
+                gantry = Gantry(name=gantry_name, registry=component.registry)
 
         session = FluidControlSession(component, gantry=gantry, mount_axis_name=args.mount_axis)
         run_repl(build_liquid_handling_cli(session), prompt="lhs> ")

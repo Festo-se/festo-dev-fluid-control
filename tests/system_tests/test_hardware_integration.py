@@ -5,13 +5,13 @@ Uses the configuration from ``tests/fixtures/test-config.json``:
     pipettor   — PGVA 192.168.0.23,   VAEM 192.168.0.27,  8 channels
 
 These tests are skipped automatically unless ``FESTO_HARDWARE_TESTS=1`` is
-set in the environment.  Run with::
+set in the environment.  Run with:: 
 
     FESTO_HARDWARE_TESTS=1 uv run pytest -m hardware -v
 
 All tests are marked ``@pytest.mark.hardware`` and excluded from the default
 ``-m "not hardware"`` run.
-"""
+""" ## TODO: Is this true????
 
 import pytest
 

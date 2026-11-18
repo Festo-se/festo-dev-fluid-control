@@ -49,8 +49,10 @@ Command                                                        Effect
 """
 
 import argparse
+import json
 import logging
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -59,11 +61,11 @@ from prompt_toolkit.completion import WordCompleter
 from applied_motion.applied_motion import Gantry
 from applied_motion.cli.compose.repl import run_repl as _run_group_repl
 from applied_motion.cli.theme import festo_console
-from configurator import ComponentView, Configurator, Registry
+from configurator import RuntimeRegistry
 from fluid_control.cli.commands import build_group
 from fluid_control.cli.logging_utils import LOG_LEVEL_CHOICES, configure_logging
 from fluid_control.cli.session import FluidControlSession, _TOP_LEVEL_CMDS
-from fluid_control.configurator_adapter import fluid_control_registrations
+from fluid_control import Aspirator, Dispenser, Pipettor
 
 console = festo_console()
 
@@ -186,7 +188,7 @@ def run_repl(session: FluidControlSession) -> None:
     _run_group_repl(root, prompt="fluid> ", console=console)
 
 
-def _resolve_mount_axis_name(component: ComponentView) -> str | None:
+def _resolve_mount_axis_name(component: Mapping[str, Any]) -> str | None:
     """Extract the configured mount axis name from a selected component view."""
     mount_axis = component.get("mount_axis")
     if isinstance(mount_axis, dict):
@@ -197,12 +199,17 @@ def _resolve_mount_axis_name(component: ComponentView) -> str | None:
 
 
 def _bootstrap_gantry(
-    component_view: ComponentView, gantry_config_path: Path | None, gantry_id: str, mount_axis: str
+    component: Mapping[str, Any],
+    registry: RuntimeRegistry,
+    gantry_config_path: Path | None,
+    gantry_id: str,
+    mount_axis: str,
 ) -> tuple[Gantry | None, str]:
-    """Bootstrap an explicit or mounted gantry using the applied-motion path.
+    """Resolve an explicit or mounted gantry through the component runtime.
 
     Args:
-        component_view: Configurator-selected fluid component view.
+        component: Selected fluid component mapping.
+        registry: Runtime shared by the selected fluid component.
         gantry_config_path: Optional explicit gantry configuration path.
         gantry_id: Gantry name used with an explicit path.
         mount_axis: CLI fallback mount-axis name.
@@ -216,7 +223,7 @@ def _bootstrap_gantry(
     if gantry_config_path is not None:
         console.print(f"[dim]Loading gantry config:[/] {gantry_config_path}")
         try:
-            gantry = Gantry.from_config(gantry_config_path, name=gantry_id)
+            gantry = Gantry.from_config(gantry_config_path, name=gantry_id, registry=registry)
             console.print(f"[festo.ok]✓[/] Gantry connected: [bold]{gantry!r}[/]")
         except Exception as exc:
             console.print(f"[yellow]![/] Could not connect gantry: {exc}")
@@ -226,21 +233,16 @@ def _bootstrap_gantry(
             gantry = _OfflineGantry([], str(exc))
         return gantry, resolved_mount_axis
 
-    mount_gantry = component_view.get("mount_gantry")
+    mount_gantry = component.get("mount_gantry")
     discovered_gantry_id = mount_gantry.get("name") if isinstance(mount_gantry, dict) else None
-    gantry_view = (
-        component_view.relationship(discovered_gantry_id)
-        if isinstance(discovered_gantry_id, str) and discovered_gantry_id
-        else None
-    )
-    if gantry_view is None:
+    if not isinstance(discovered_gantry_id, str) or not discovered_gantry_id:
         return None, resolved_mount_axis
 
     console.print(f"[dim]Bootstrapping gantry from config:[/] {discovered_gantry_id}")
     try:
-        gantry = Gantry.from_config(dict(gantry_view.root), name=cast(str, discovered_gantry_id))
+        gantry = Gantry(name=discovered_gantry_id, registry=registry)
         console.print(f"[festo.ok]✓[/] Gantry connected: [bold]{gantry!r}[/]")
-        configured_mount_axis = _resolve_mount_axis_name(component_view)
+        configured_mount_axis = _resolve_mount_axis_name(component)
         if configured_mount_axis is not None:
             resolved_mount_axis = configured_mount_axis
     except Exception as exc:
@@ -249,11 +251,12 @@ def _bootstrap_gantry(
             "[dim]Continuing with an offline gantry stub — motion commands will remain unavailable until a connection is restored.[/]"
         )
         axis_names: list[str] = []
-        axes_cfg = gantry_view.get("axes")
+        view = registry.views.get(discovered_gantry_id)
+        axes_cfg = view.get("axes") if view is not None else None
         if isinstance(axes_cfg, dict):
             axis_names = [axis_name for axis_name in axes_cfg if isinstance(axis_name, str)]
         gantry = _OfflineGantry(axis_names, str(exc))
-        configured_mount_axis = _resolve_mount_axis_name(component_view)
+        configured_mount_axis = _resolve_mount_axis_name(component)
         if configured_mount_axis is not None:
             resolved_mount_axis = configured_mount_axis
 
@@ -320,33 +323,41 @@ def main() -> None:
 
     configure_logging(args.log_level)
 
-    # Bootstrap the selected fluid component through configurator source loading.
     console.print(f"[dim]Loading fluid-control config:[/] {args.config}")
     try:
-        selector: str | dict[str, str] = args.component_id
-        if args.component_type != "auto":
-            selector = {"name": args.component_id, "type": args.component_type}
-        result: Any = Configurator.bootstrap(args.config, selector, Registry.compose(*fluid_control_registrations()))
+        # TODO: use configurator functionality instead?
+        config = json.loads(args.config.read_text(encoding="utf-8"))
+        normalized = config.get("component_config", config)
+        components = normalized.get("components", {})
+        component_config = components[args.component_id]
+        component_type = args.component_type
+        if component_type == "auto":
+            component_type = component_config.get("component_class", component_config.get("component_type"))
+        component_class = {"dispenser": Dispenser, "pipettor": Pipettor, "aspirator": Aspirator}.get(component_type)
+        if component_class is None:
+            raise ValueError(f"Unsupported component type: {component_type!r}")
+        component = component_class(config=config, component_id=args.component_id)
     except Exception as exc:
         console.print(f"[red]✗[/] Failed to load config: {exc}")
         sys.exit(1)
 
-    component_view = result.views[args.component_id]
-    component_type = component_view.component_type
-    component = result.instance
     console.print(f"[dim]Initialising {component_type} [bold]{args.component_id!r}[/]…[/]")
     console.print(f"[festo.ok]✓[/] Component ready: [bold]{component!r}[/]")
 
     # Optionally connect to a gantry
     gantry, mount_axis_name = _bootstrap_gantry(
-        component_view,
+        component_config,
+        cast(RuntimeRegistry, component.registry),
         args.gantry_config,
         args.gantry_id,
         args.mount_axis,
     )
 
     session = FluidControlSession(component, gantry=gantry, mount_axis_name=mount_axis_name)
-    run_repl(session)
+    try:
+        run_repl(session)
+    finally:
+        component.close()
 
 
 if __name__ == "__main__":

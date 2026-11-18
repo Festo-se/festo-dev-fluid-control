@@ -21,12 +21,11 @@ Requires reachable hardware and the ``festo-dev-applied-motion`` package.
 """
 
 from pathlib import Path
+import json
 
 from applied_motion import Gantry
-from configurator import Configurator, Registry
 
 from fluid_control import Dispenser, PressureControl
-from fluid_control.configurator_adapter import fluid_control_registrations
 
 # Full instrument config at the repository root (defines gantry + both dispensers).
 _CONFIG_PATH = Path(__file__).resolve().parents[2] / "test-fluid-configs.json"
@@ -34,21 +33,16 @@ _CONFIG_PATH = Path(__file__).resolve().parents[2] / "test-fluid-configs.json"
 
 def main() -> None:
     """Dispense on the macro-dispenser using a shared VAEM and an external regulator."""
-    registry = Registry.compose(*fluid_control_registrations())
-    with Configurator.bootstrap(_CONFIG_PATH, "micro-dispenser", registry) as result:
-        micro_view = result.views["micro-dispenser"]
-        macro_view = micro_view.require_relationship("macro-dispenser")
-
+    config = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
+    normalized = config.get("component_config", config)
+    with Dispenser(config=config, component_id="micro-dispenser") as micro_dispenser:
         # The gantry provides the VEAB pressure regulator.
-        gantry = Gantry.from_config(micro_view.root)
-
-        # The micro-dispenser owns the VAEM connection.
-        micro_dispenser = result.instance
+        gantry = Gantry(config=config, name="gantry_1", registry=micro_dispenser.registry)
 
         # The macro-dispenser re-uses the VAEM and regulates pressure via the gantry.
         macro_dispenser = Dispenser(
-            config={"components": {macro_view.name: macro_view.data}},
-            component_id=macro_view.name,
+            config={"components": {"macro-dispenser": normalized["components"]["macro-dispenser"]}},
+            component_id="macro-dispenser",
             pressure_control=PressureControl(gantry),
             valve_control=micro_dispenser.valve_control,
         )

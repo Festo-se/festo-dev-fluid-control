@@ -15,9 +15,11 @@ from typing import NamedTuple, TypedDict
 import json
 import math
 import logging
+from pathlib import Path
 from pgva import PGVA, PGVATCPConfig
 from vaem import VAEM, VAEMTCPConfig
 from applied_motion import Axis
+from configurator import RuntimeRegistry
 
 from fluid_control.device_config import DeviceConfig
 
@@ -173,6 +175,64 @@ class PressureOverLiquidControl(FluidControl):
         "axis via the configuration file if this was done in error."
     )
 
+    def __new__(
+        cls,
+        config: dict | str | Path | None = None,
+        component_id: str | None = None,
+        mount_arm: Axis | None = None,  # TODO: instantiation has referencing ON. BAD?
+        disable_axes: tuple[Axis, ...] = (),
+        pressure_control: PGVA | None = None,
+        valve_control: VAEM | None = None,
+        device_config: DeviceConfig | None = None,
+        # TODO: Remove device_config nonsense
+        registry: RuntimeRegistry | None = None,
+    ):
+        """Resolve ordinary config-backed construction through a shared runtime."""
+        if cls is PressureOverLiquidControl:
+            return super().__new__(cls)
+        if device_config is not None:
+            if registry is not None:
+                raise ValueError("registry-backed construction requires a config-selected component")
+            return super().__new__(cls)
+        if config is None:
+            if registry is not None:
+                raise ValueError("config is required when joining a shared registry")
+            return super().__new__(cls)
+        if config is None and (pressure_control is not None or valve_control is not None):
+            return super().__new__(cls)
+
+        name = component_id or f"{cls.component_type}_1"
+        runtime = registry if registry is not None else RuntimeRegistry(config)
+        options = {
+            key: value
+            for key, value in {
+                "mount_arm": mount_arm,
+                "disable_axes": disable_axes if disable_axes else None,
+                "pressure_control": pressure_control,
+                "valve_control": valve_control,
+            }.items()
+            if value is not None
+        }
+        instance = runtime.resolve(
+            name,
+            cls.component_type,
+            source=config if registry is not None else None,
+            options=options,
+        )
+        for attribute in ("mount_arm", "pressure_control", "valve_control"):
+            supplied = options.get(attribute)
+            if supplied is not None and getattr(instance, attribute, None) is not supplied:
+                raise ValueError(f"Component {name!r} is already initialized with a different {attribute}")
+        supplied_axes = options.get("disable_axes")
+        # TODO: Fix this supplied_axes nonsense
+        if supplied_axes is not None:
+            existing_axes = tuple(getattr(instance, "disable_axes", ()))
+            if len(existing_axes) != len(supplied_axes) or any(
+                existing is not supplied for existing, supplied in zip(existing_axes, supplied_axes, strict=True)
+            ):
+                raise ValueError(f"Component {name!r} is already initialized with different disable_axes")
+        return instance
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Enforce that every concrete subclass declares a non-empty ``component_type``."""
         super().__init_subclass__(**kwargs)
@@ -181,7 +241,7 @@ class PressureOverLiquidControl(FluidControl):
 
     def __init__(
         self,
-        config: dict,  # TODO: SUPPORT CONFIG FILENAME IMPORT
+        config: dict | str | Path,
         component_id: str | None = None,
         # TODO: Optional args to directly pass in existing pressure and valve control and skip config
         mount_arm: Axis | None = None,  # TODO: Take from config
@@ -189,6 +249,7 @@ class PressureOverLiquidControl(FluidControl):
         pressure_control: PGVA | None = None,
         valve_control: VAEM | None = None,
         device_config: DeviceConfig | None = None,
+        registry: RuntimeRegistry | None = None,
     ) -> None:
         """
         Initialize a pressure-over-liquid fluid control module.
@@ -211,6 +272,11 @@ class PressureOverLiquidControl(FluidControl):
             device_config: Optional pre-resolved component configuration view supplied by the
                 configurator builder. When omitted, the legacy ``config`` and ``component_id``
                 resolution path is used.
+            registry: Optional shared runtime. Config-backed construction joins this runtime;
+                supplied controllers are used for first construction and remain caller-owned.
+            registry: Optional shared runtime. When provided, config-backed
+                construction resolves or joins the selected component in that session; injected
+                controllers are passed to its builder and remain caller-owned.
 
         Examples:
             Construct from a configuration dict (the library opens the hardware
@@ -244,6 +310,14 @@ class PressureOverLiquidControl(FluidControl):
             ... )
 
         """
+        runtime = getattr(self, "_runtime_registry", None)
+        if runtime is not None:
+            if registry is not None and registry is not runtime:
+                raise ValueError("The supplied registry does not match the component's shared runtime")
+            self.registry = runtime
+            return
+        if registry is not None:
+            raise ValueError("registry requires config-backed construction through the shared runtime")
         # TODO: If neither config nor pressure/valve control passed in, init error
         if type(self) is PressureOverLiquidControl:
             raise TypeError(
@@ -254,6 +328,9 @@ class PressureOverLiquidControl(FluidControl):
         if component_id is None:
             component_id = device_config.component_id if device_config is not None else f"{self.component_type}_1"
         self.component_id = component_id
+        self.registry: RuntimeRegistry | None = None
+        self._runtime_registry: RuntimeRegistry | None = None
+        self._registry_owner = False
         self._owned_controllers: list[tuple[str, object]] = []
         self._closed = False
         logger.info(f"Initializing {self.component_type} (id={component_id!r})")
@@ -822,6 +899,14 @@ class PressureOverLiquidControl(FluidControl):
         The method is idempotent. Controllers supplied through ``pressure_control``
         or ``valve_control`` are never closed by this method.
         """
+        if self._runtime_registry is not None:
+            if self._registry_owner:
+                self._runtime_registry.close()
+            return
+        self._close_runtime_resources()
+
+    def _close_runtime_resources(self) -> None:
+        """Return this component to a safe state and release its controllers."""
         if self._closed:
             return
         self._closed = True

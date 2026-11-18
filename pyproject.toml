@@ -27,7 +27,7 @@ dependencies = [
     "festo-pgva>=0.2.1",
     "festo-vaem>=0.3",
     "festo-dev-applied-motion>=0.3.3",
-    "festo-dev-configurator>=0.1.0",
+    "festo-dev-configurator>=0.2.0",
 ]
 
 [project.urls]
@@ -37,6 +37,11 @@ Issues = "https://github.com/Festo-se/festo-dev-fluid-control/issues"
 
 [project.scripts]
 fluid-control-cli = "fluid_control.cli.cli:main"
+
+[project.entry-points."festo_dev_configurator.providers"]
+dispenser = "fluid_control.configurator_adapter:dispenser_registration"
+pipettor = "fluid_control.configurator_adapter:pipettor_registration"
+aspirator = "fluid_control.configurator_adapter:aspirator_registration"
 
 [project.optional-dependencies]
 cli = ["prompt-toolkit>=3.0.52", "rich>=14.0.0"]

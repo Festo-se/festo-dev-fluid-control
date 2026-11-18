@@ -6,7 +6,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any, cast
 
-from configurator import COMPAT, ComponentView, Registration, ValidationMode
+from configurator import COMPAT, ComponentDependency, ComponentView, Registration, RuntimeRegistry, ValidationMode
 from applied_motion import Axis
 
 from fluid_control.aspirator import Aspirator
@@ -26,10 +26,65 @@ def _cleanup_fluid_control(instance: Any) -> None:
     Raises:
         TypeError: If the builder result does not expose a callable ``close`` method.
     """
-    close = getattr(instance, "close", None)
-    if not callable(close):
-        raise TypeError("Fluid-control builder result must expose close()")
-    close()
+    close_resources = getattr(instance, "_close_runtime_resources", None)
+    if not callable(close_resources):
+        raise TypeError("Fluid-control builder result must expose runtime cleanup")
+    close_resources()
+
+
+def _bind_runtime(instance: Any, runtime: RuntimeRegistry | None) -> Any:
+    """Attach the shared session to a provider-built fluid component."""
+    if runtime is not None:
+        instance.registry = runtime
+        instance._runtime_registry = runtime
+    return instance
+
+
+def _pipettor_dependencies(view: ComponentView) -> tuple[ComponentDependency, ...]:
+    """Resolve an optional mount gantry only when it belongs to this source."""
+    mount_gantry = view.get("mount_gantry")
+    name = mount_gantry.get("name") if isinstance(mount_gantry, Mapping) else None
+    components = view.root.get("components")
+    if isinstance(name, str) and name and isinstance(components, Mapping) and name in components:
+        return (ComponentDependency(name, "gantry", f"{view.path}.mount_gantry.name"),)
+    return ()
+
+
+def _pipettor_axes(
+    view: ComponentView,
+    options: Mapping[str, Any],
+    dependencies: Mapping[str, Any],
+) -> tuple[Axis | None, tuple[Axis, ...]]:
+    """Resolve configured motion axis names against an optional built gantry."""
+    mount_arm = cast(Axis | None, options.get("mount_arm")) if "mount_arm" in options else None
+    disabled = tuple(cast(tuple[Axis, ...], options["disable_axes"])) if "disable_axes" in options else None
+    mount_gantry = view.get("mount_gantry")
+    gantry_name = mount_gantry.get("name") if isinstance(mount_gantry, Mapping) else None
+    gantry = dependencies.get(gantry_name) if isinstance(gantry_name, str) else None
+    if gantry is None:
+        return mount_arm, disabled or ()
+
+    axes = gantry.axes
+    if "mount_arm" not in options:
+        mount_axis = view.get(
+            "mount_axis"
+        )  # TODO: Check whether this is right or should only be from "mount_arm". Or vice-versa
+
+        axis_name = mount_axis.get("name") if isinstance(mount_axis, Mapping) else mount_axis
+        if isinstance(axis_name, str):
+            if axis_name not in axes:
+                raise ValueError(f"Configured mount axis {axis_name!r} is not present on gantry {gantry_name!r}")
+            mount_arm = axes[axis_name]
+
+    if disabled is None:
+        configured_names = view.get("axes_disable_for_pickup", ())
+        if not isinstance(configured_names, (list, tuple)):
+            raise ValueError("axes_disable_for_pickup must be a list of gantry axis names")
+        missing = [axis_name for axis_name in configured_names if axis_name not in axes]
+        if missing:
+            raise ValueError(f"Configured disabled axes {missing!r} are not present on gantry {gantry_name!r}")
+        disabled = tuple(axes[axis_name] for axis_name in configured_names)
+    return mount_arm, disabled
 
 
 def _validate_component_view(view: ComponentView, expected_type: str) -> DeviceConfig:
@@ -90,6 +145,7 @@ def build_dispenser_from_view(
     mode: ValidationMode = COMPAT,
     options: Mapping[str, Any] | None = None,
     resolver: Any = None,
+    runtime: RuntimeRegistry | None = None,
 ) -> Dispenser:
     """Build a dispenser from a selected configurator component view.
 
@@ -106,10 +162,17 @@ def build_dispenser_from_view(
         TypeError: If the view does not satisfy the component-view contract.
         ValueError: If the view is not a dispenser component.
     """
-    del mode, options, resolver
     device_config = _validate_component_view(view, "dispenser")
     logger.debug("Building dispenser %r from selected configurator view", view.name)
-    return Dispenser(config={"components": {view.name: view.data}}, component_id=view.name, device_config=device_config)
+    runtime_options = dict(options or {})
+    instance = Dispenser(
+        config={"components": {view.name: view.data}},
+        component_id=view.name,
+        device_config=device_config,
+        pressure_control=runtime_options.get("pressure_control"),
+        valve_control=runtime_options.get("valve_control"),
+    )
+    return _bind_runtime(instance, runtime)
 
 
 def build_pipettor_from_view(
@@ -118,6 +181,8 @@ def build_pipettor_from_view(
     mode: ValidationMode = COMPAT,
     options: Mapping[str, Any] | None = None,
     resolver: Any = None,
+    runtime: RuntimeRegistry | None = None,
+    dependencies: Mapping[str, Any] | None = None,
 ) -> Pipettor:
     """Build a pipettor from a selected configurator component view.
 
@@ -134,23 +199,20 @@ def build_pipettor_from_view(
         TypeError: If the view does not satisfy the component-view contract.
         ValueError: If the view is not a pipettor component.
     """
-    del mode, resolver
     device_config = _validate_component_view(view, "pipettor")
     logger.debug("Building pipettor %r from selected configurator view", view.name)
     runtime_options = dict(options or {})
-    mount_arm: Axis | None = None
-    disable_axes: tuple[Axis, ...] = ()
-    if "mount_arm" in runtime_options:
-        mount_arm = cast(Axis | None, runtime_options["mount_arm"])
-    if "disable_axes" in runtime_options:
-        disable_axes = cast(tuple[Axis, ...], tuple(runtime_options["disable_axes"]))
-    return Pipettor(
+    mount_arm, disable_axes = _pipettor_axes(view, runtime_options, dependencies or {})
+    instance = Pipettor(
         config={"components": {view.name: view.data}},
         component_id=view.name,
         device_config=device_config,
         mount_arm=mount_arm,
         disable_axes=disable_axes,
+        pressure_control=runtime_options.get("pressure_control"),
+        valve_control=runtime_options.get("valve_control"),
     )
+    return _bind_runtime(instance, runtime)
 
 
 def build_aspirator_from_view(
@@ -159,6 +221,7 @@ def build_aspirator_from_view(
     mode: ValidationMode = COMPAT,
     options: Mapping[str, Any] | None = None,
     resolver: Any = None,
+    runtime: RuntimeRegistry | None = None,
 ) -> Aspirator:
     """Build an aspirator from a selected configurator component view.
 
@@ -175,10 +238,17 @@ def build_aspirator_from_view(
         TypeError: If the view does not satisfy the component-view contract.
         ValueError: If the view is not an aspirator component.
     """
-    del mode, options, resolver
     device_config = _validate_component_view(view, "aspirator")
     logger.debug("Building aspirator %r from selected configurator view", view.name)
-    return Aspirator(config={"components": {view.name: view.data}}, component_id=view.name, device_config=device_config)
+    runtime_options = dict(options or {})
+    instance = Aspirator(
+        config={"components": {view.name: view.data}},
+        component_id=view.name,
+        device_config=device_config,
+        pressure_control=runtime_options.get("pressure_control"),
+        valve_control=runtime_options.get("valve_control"),
+    )
+    return _bind_runtime(instance, runtime)
 
 
 def dispenser_registration() -> Registration:
@@ -208,6 +278,7 @@ def pipettor_registration() -> Registration:
         builder=build_pipettor_from_view,
         validator=validate_fluid_view,
         cleanup=_cleanup_fluid_control,
+        component_dependencies=_pipettor_dependencies,
     )
 
 

@@ -58,7 +58,7 @@ def _make_component(*, channels: int, active_channels: list[int]) -> dict:
     }
     flow_a = {str(i): {"channel_index_coeff": 0.0, "flow_offset": 1.318858492 + i * 0.01} for i in active_channels}
     vol_a = {str(i): {"channel_index_coeff": 0.0, "volume_offset": -10.40199499 - i * 0.1} for i in active_channels}
-
+    # TODO: Does this config match the new schema?
     return {
         "uuid": "0000-000000000-000000-001",
         "type": "pressure-over-liquid",

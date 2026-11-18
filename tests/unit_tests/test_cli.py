@@ -84,16 +84,13 @@ class TestValveTimed:
         dispenser.direct_command.assert_called_once_with(channel_times={1: 500}, pressure=70)
         assert result[0] == 0
 
-    def test_cli_bootstraps_component_from_configurator_path_and_explicit_type(self, monkeypatch, tmp_path):
-        from configurator import ComponentView
+    def test_cli_uses_component_constructor_with_explicit_type(self, monkeypatch, tmp_path):
         from fluid_control.cli import cli as fluid_cli
 
         source = tmp_path / "fluid.json"
-        source.write_text("{}", encoding="utf-8")
-        view = ComponentView("pipettor_1", "pipettor", {}, {}, "components.pipettor_1", {})
-        result = MagicMock(instance=MagicMock(), views={"pipettor_1": view})
-        bootstrap = MagicMock(return_value=result)
-        monkeypatch.setattr(fluid_cli.Configurator, "bootstrap", bootstrap)
+        source.write_text('{"components":{"pipettor_1":{"component_class":"pipettor"}}}', encoding="utf-8")
+        component = MagicMock()
+        monkeypatch.setattr(fluid_cli, "Pipettor", MagicMock(return_value=component))
         monkeypatch.setattr(fluid_cli, "run_repl", lambda _session: None)
         monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
         monkeypatch.setattr(
@@ -112,19 +109,18 @@ class TestValveTimed:
 
         fluid_cli.main()
 
-        bootstrap.assert_called_once()
-        assert bootstrap.call_args.args[0] == source
-        assert bootstrap.call_args.args[1] == {"name": "pipettor_1", "type": "pipettor"}
+        fluid_cli.Pipettor.assert_called_once_with(
+            config={"components": {"pipettor_1": {"component_class": "pipettor"}}}, component_id="pipettor_1"
+        )
+        component.close.assert_called_once_with()
 
-    def test_cli_auto_selection_uses_component_name_selector(self, monkeypatch, tmp_path):
-        from configurator import ComponentView
+    def test_cli_auto_selection_uses_component_class_from_config(self, monkeypatch, tmp_path):
         from fluid_control.cli import cli as fluid_cli
 
         source = tmp_path / "fluid.json"
-        source.write_text("{}", encoding="utf-8")
-        view = ComponentView("dispenser_1", "dispenser", {}, {}, "components.dispenser_1", {})
-        bootstrap = MagicMock(return_value=MagicMock(instance=MagicMock(), views={"dispenser_1": view}))
-        monkeypatch.setattr(fluid_cli.Configurator, "bootstrap", bootstrap)
+        source.write_text('{"components":{"dispenser_1":{"component_class":"dispenser"}}}', encoding="utf-8")
+        component = MagicMock()
+        monkeypatch.setattr(fluid_cli, "Dispenser", MagicMock(return_value=component))
         monkeypatch.setattr(fluid_cli, "run_repl", lambda _session: None)
         monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
         monkeypatch.setattr(
@@ -133,15 +129,17 @@ class TestValveTimed:
 
         fluid_cli.main()
 
-        assert bootstrap.call_args.args[1] == "dispenser_1"
+        fluid_cli.Dispenser.assert_called_once_with(
+            config={"components": {"dispenser_1": {"component_class": "dispenser"}}}, component_id="dispenser_1"
+        )
 
-    def test_cli_reports_unknown_or_wrong_type_configurator_errors(self, monkeypatch, capsys, tmp_path):
+    def test_cli_reports_constructor_errors(self, monkeypatch, capsys, tmp_path):
         from configurator import SelectionError
         from fluid_control.cli import cli as fluid_cli
 
         source = tmp_path / "fluid.json"
-        source.write_text("{}", encoding="utf-8")
-        monkeypatch.setattr(fluid_cli.Configurator, "bootstrap", MagicMock(side_effect=SelectionError("bad selection")))
+        source.write_text('{"components":{"dispenser_1":{"component_class":"dispenser"}}}', encoding="utf-8")
+        monkeypatch.setattr(fluid_cli, "Dispenser", MagicMock(side_effect=SelectionError("bad selection")))
         monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
         monkeypatch.setattr(
             sys,
@@ -156,84 +154,58 @@ class TestValveTimed:
         assert "Failed to load config" in capsys.readouterr().out
 
     def test_mounted_gantry_uses_component_view_relationship_and_preserves_axis(self, monkeypatch):
-        from configurator import ComponentView
         from fluid_control.cli.cli import _bootstrap_gantry
 
-        gantry_data = {"component_class": "gantry", "axes": {"Z": {"name": "Z"}}}
-        root = {
-            "components": {
-                "dispenser_1": {"mount_gantry": {"name": "gantry_1"}, "mount_axis": {"name": "ZP"}},
-                "gantry_1": gantry_data,
-            }
-        }
-        view = ComponentView(
-            "dispenser_1",
-            "dispenser",
-            root["components"]["dispenser_1"],
-            root,
-            "components.dispenser_1",
-            root["components"],
-        )
+        component = {"mount_gantry": {"name": "gantry_1"}, "mount_axis": {"name": "ZP"}}
+        registry = MagicMock()
         gantry = MagicMock()
-        from_config = MagicMock(return_value=gantry)
-        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", from_config)
+        constructor = MagicMock(return_value=gantry)
+        monkeypatch.setattr("fluid_control.cli.cli.Gantry", constructor)
 
-        resolved, axis = _bootstrap_gantry(view, None, "gantry_1", "Z")
+        resolved, axis = _bootstrap_gantry(component, registry, None, "gantry_1", "Z")
 
         assert resolved is gantry
         assert axis == "ZP"
-        from_config.assert_called_once_with(root, name="gantry_1")
+        constructor.assert_called_once_with(name="gantry_1", registry=registry)
 
     def test_explicit_gantry_path_is_used_unchanged(self, monkeypatch):
         from pathlib import Path
-        from configurator import ComponentView
         from fluid_control.cli.cli import _bootstrap_gantry
 
-        view = ComponentView("dispenser_1", "dispenser", {}, {}, "components.dispenser_1", {})
+        registry = MagicMock()
         gantry = MagicMock()
-        from_config = MagicMock(return_value=gantry)
-        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", from_config)
+        constructor = MagicMock()
+        constructor.from_config.return_value = gantry
+        monkeypatch.setattr("fluid_control.cli.cli.Gantry", constructor)
         path = Path("gantry.json")
 
-        resolved, axis = _bootstrap_gantry(view, path, "custom_gantry", "Z")
+        resolved, axis = _bootstrap_gantry({}, registry, path, "custom_gantry", "Z")
 
         assert resolved is gantry
         assert axis == "Z"
-        from_config.assert_called_once_with(path, name="custom_gantry")
+        constructor.from_config.assert_called_once_with(path, name="custom_gantry", registry=registry)
 
     def test_mounted_gantry_failure_returns_offline_axes(self, monkeypatch):
-        from configurator import ComponentView
         from fluid_control.cli.cli import _OfflineGantry, _bootstrap_gantry
 
-        gantry_data = {"component_class": "gantry", "axes": {"Z": {"name": "Z"}, "X": {"name": "X"}}}
-        root = {
-            "components": {
-                "dispenser_1": {"mount_gantry": {"name": "gantry_1"}, "mount_axis": "Z"},
-                "gantry_1": gantry_data,
-            }
-        }
-        view = ComponentView(
-            "dispenser_1",
-            "dispenser",
-            root["components"]["dispenser_1"],
-            root,
-            "components.dispenser_1",
-            root["components"],
-        )
-        monkeypatch.setattr("fluid_control.cli.cli.Gantry.from_config", MagicMock(side_effect=OSError("boom")))
+        component = {"mount_gantry": {"name": "gantry_1"}, "mount_axis": "Z"}
+        view = MagicMock()
+        view.get.return_value = {"Z": {"name": "Z"}, "X": {"name": "X"}}
+        registry = MagicMock(views={"gantry_1": view})
+        monkeypatch.setattr("fluid_control.cli.cli.Gantry", MagicMock(side_effect=OSError("boom")))
 
-        gantry, axis = _bootstrap_gantry(view, None, "gantry_1", "Y")
+        gantry, axis = _bootstrap_gantry(component, registry, None, "gantry_1", "Y")
 
         assert isinstance(gantry, _OfflineGantry)
         assert set(gantry.axes) == {"Z", "X"}
         assert axis == "Z"
 
-    def test_cli_has_no_local_json_loader_or_component_scan_helpers(self):
+    def test_cli_parses_json_source_without_component_scan_helpers(self):
         from inspect import getsource
         from fluid_control.cli import cli as fluid_cli
 
         source = getsource(fluid_cli)
-        assert "json.load" not in source
+        assert "json.loads(args.config.read_text" in source
         assert "_discover_component_gantry_config" not in source
         assert "_wrap_gantry_config_for_bootstrap" not in source
 

@@ -15,17 +15,12 @@ Run with::
 Requires a reachable PGVA and VAEM at the addresses in the configuration.
 """
 
-from configurator import Configurator, Registry
-from fluid_control import example_config_path
-from fluid_control.configurator_adapter import fluid_control_registrations
+from fluid_control import Dispenser, example_config_path
 
 
 def main() -> None:
     """Dispense within a context manager and print liquid classes and status."""
-    with Configurator.bootstrap(
-        example_config_path(), "micro-dispenser", Registry.compose(*fluid_control_registrations())
-    ) as result:
-        dispenser = result.instance
+    with Dispenser(config=example_config_path(), component_id="micro-dispenser") as dispenser:
         print("Liquid classes:", list(dispenser.get_liquid_classes()))
 
         dispenser.dispense({1: {"volume": 30.0, "liquid_class": "water"}})

@@ -30,8 +30,8 @@ def test_all_examples_are_import_safe():
         _import_file(path, f"fluid_control_example_import_test_{index}")
 
 
-def test_config_driven_examples_use_configurator_bootstrap():
-    """Configuration selection stays in the canonical configurator path."""
+def test_config_driven_examples_use_component_constructors():
+    """Examples use config-backed component constructors without catalogs."""
     paths = (
         REPOSITORY_ROOT / "examples" / "composable_cli.py",
         REPOSITORY_ROOT / "examples" / "dispenser" / "basic_dispense.py",
@@ -46,12 +46,5 @@ def test_config_driven_examples_use_configurator_bootstrap():
     for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         source = ast.unparse(tree)
-        assert "Configurator.bootstrap" in source
-        assert not any(
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "json"
-            and node.func.attr == "load"
-            for node in ast.walk(tree)
-        )
+        assert "Configurator.bootstrap" not in source
+        assert "Registry.compose" not in source
