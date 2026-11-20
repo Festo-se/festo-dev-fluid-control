@@ -49,12 +49,11 @@ Command                                                        Effect
 """
 
 import argparse
-import json
 import logging
 import sys
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from prompt_toolkit.completion import WordCompleter
 
@@ -65,7 +64,6 @@ from configurator import RuntimeRegistry
 from fluid_control.cli.commands import build_group
 from fluid_control.cli.logging_utils import LOG_LEVEL_CHOICES, configure_logging
 from fluid_control.cli.session import FluidControlSession, _TOP_LEVEL_CMDS
-from fluid_control import Aspirator, Dispenser, Pipettor
 
 console = festo_console()
 
@@ -324,37 +322,40 @@ def main() -> None:
     configure_logging(args.log_level)
 
     console.print(f"[dim]Loading fluid-control config:[/] {args.config}")
+    registry: RuntimeRegistry | None = None
     try:
-        # TODO: use configurator functionality instead?
-        config = json.loads(args.config.read_text(encoding="utf-8"))
-        normalized = config.get("component_config", config)
-        components = normalized.get("components", {})
-        component_config = components[args.component_id]
-        component_type = args.component_type
-        if component_type == "auto":
-            component_type = component_config.get("component_class", component_config.get("component_type"))
-        component_class = {"dispenser": Dispenser, "pipettor": Pipettor, "aspirator": Aspirator}.get(component_type)
-        if component_class is None:
-            raise ValueError(f"Unsupported component type: {component_type!r}")
-        component = component_class(config=config, component_id=args.component_id)
+        registry = RuntimeRegistry(args.config)
+        expected_type = None if args.component_type == "auto" else args.component_type
+        component = registry.resolve(args.component_id, component_type=expected_type)
+        component_view = registry.views[args.component_id]
+        component_config = component_view.data
+        component_type = component_view.component_type
     except Exception as exc:
+        if registry is not None:
+            try:
+                registry.close()
+            except Exception:
+                logger.warning("Failed to close configurator runtime after startup error", exc_info=True)
         console.print(f"[red]✗[/] Failed to load config: {exc}")
+        sys.exit(1)
+
+    if registry is None:
         sys.exit(1)
 
     console.print(f"[dim]Initialising {component_type} [bold]{args.component_id!r}[/]…[/]")
     console.print(f"[festo.ok]✓[/] Component ready: [bold]{component!r}[/]")
 
-    # Optionally connect to a gantry
-    gantry, mount_axis_name = _bootstrap_gantry(
-        component_config,
-        cast(RuntimeRegistry, component.registry),
-        args.gantry_config,
-        args.gantry_id,
-        args.mount_axis,
-    )
-
-    session = FluidControlSession(component, gantry=gantry, mount_axis_name=mount_axis_name)
     try:
+        # Optionally connect to a gantry
+        gantry, mount_axis_name = _bootstrap_gantry(
+            component_config,
+            registry,
+            args.gantry_config,
+            args.gantry_id,
+            args.mount_axis,
+        )
+
+        session = FluidControlSession(component, gantry=gantry, mount_axis_name=mount_axis_name)
         run_repl(session)
     finally:
         component.close()

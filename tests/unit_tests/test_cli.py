@@ -84,13 +84,17 @@ class TestValveTimed:
         dispenser.direct_command.assert_called_once_with(channel_times={1: 500}, pressure=70)
         assert result[0] == 0
 
-    def test_cli_uses_component_constructor_with_explicit_type(self, monkeypatch, tmp_path):
+    def test_cli_resolves_component_through_configurator_with_explicit_type(self, monkeypatch, tmp_path):
         from fluid_control.cli import cli as fluid_cli
 
         source = tmp_path / "fluid.json"
         source.write_text('{"components":{"pipettor_1":{"component_class":"pipettor"}}}', encoding="utf-8")
         component = MagicMock()
-        monkeypatch.setattr(fluid_cli, "Pipettor", MagicMock(return_value=component))
+        view = MagicMock(component_type="pipettor", data={"component_class": "pipettor"})
+        registry = MagicMock()
+        registry.resolve.return_value = component
+        registry.views = {"pipettor_1": view}
+        monkeypatch.setattr(fluid_cli, "RuntimeRegistry", MagicMock(return_value=registry))
         monkeypatch.setattr(fluid_cli, "run_repl", lambda _session: None)
         monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
         monkeypatch.setattr(
@@ -109,18 +113,27 @@ class TestValveTimed:
 
         fluid_cli.main()
 
-        fluid_cli.Pipettor.assert_called_once_with(
-            config={"components": {"pipettor_1": {"component_class": "pipettor"}}}, component_id="pipettor_1"
-        )
+        fluid_cli.RuntimeRegistry.assert_called_once_with(source)
+        registry.resolve.assert_called_once_with("pipettor_1", component_type="pipettor")
         component.close.assert_called_once_with()
 
-    def test_cli_auto_selection_uses_component_class_from_config(self, monkeypatch, tmp_path):
+    def test_cli_auto_selection_uses_configurator_component_view(self, monkeypatch, tmp_path):
         from fluid_control.cli import cli as fluid_cli
 
         source = tmp_path / "fluid.json"
         source.write_text('{"components":{"dispenser_1":{"component_class":"dispenser"}}}', encoding="utf-8")
         component = MagicMock()
-        monkeypatch.setattr(fluid_cli, "Dispenser", MagicMock(return_value=component))
+        view = MagicMock(component_type="dispenser", data={"component_class": "dispenser"})
+        registry = MagicMock()
+        registry.resolve.return_value = component
+        registry.views = {"dispenser_1": view}
+        monkeypatch.setattr(fluid_cli, "RuntimeRegistry", MagicMock(return_value=registry))
+        gantry_bootstrap_calls = []
+        monkeypatch.setattr(
+            fluid_cli,
+            "_bootstrap_gantry",
+            lambda selected, *_args: (gantry_bootstrap_calls.append(selected) or None, "Z"),
+        )
         monkeypatch.setattr(fluid_cli, "run_repl", lambda _session: None)
         monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
         monkeypatch.setattr(
@@ -129,9 +142,9 @@ class TestValveTimed:
 
         fluid_cli.main()
 
-        fluid_cli.Dispenser.assert_called_once_with(
-            config={"components": {"dispenser_1": {"component_class": "dispenser"}}}, component_id="dispenser_1"
-        )
+        registry.resolve.assert_called_once_with("dispenser_1", component_type=None)
+        assert gantry_bootstrap_calls == [view.data]
+        component.close.assert_called_once_with()
 
     def test_cli_reports_constructor_errors(self, monkeypatch, capsys, tmp_path):
         from configurator import SelectionError
@@ -139,7 +152,9 @@ class TestValveTimed:
 
         source = tmp_path / "fluid.json"
         source.write_text('{"components":{"dispenser_1":{"component_class":"dispenser"}}}', encoding="utf-8")
-        monkeypatch.setattr(fluid_cli, "Dispenser", MagicMock(side_effect=SelectionError("bad selection")))
+        registry = MagicMock()
+        registry.resolve.side_effect = SelectionError("bad selection")
+        monkeypatch.setattr(fluid_cli, "RuntimeRegistry", MagicMock(return_value=registry))
         monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
         monkeypatch.setattr(
             sys,
@@ -152,6 +167,24 @@ class TestValveTimed:
 
         assert error.value.code == 1
         assert "Failed to load config" in capsys.readouterr().out
+        registry.close.assert_called_once_with()
+
+    def test_cli_reports_configurator_source_errors(self, monkeypatch, capsys, tmp_path):
+        from fluid_control.cli import cli as fluid_cli
+
+        source = tmp_path / "fluid.json"
+        registry_factory = MagicMock(side_effect=ValueError("invalid source"))
+        monkeypatch.setattr(fluid_cli, "RuntimeRegistry", registry_factory)
+        monkeypatch.setattr(fluid_cli, "configure_logging", lambda _level: None)
+        monkeypatch.setattr(
+            sys, "argv", ["fluid-control-cli", "--config", str(source), "--component-id", "dispenser_1"]
+        )
+
+        with pytest.raises(SystemExit) as error:
+            fluid_cli.main()
+
+        assert error.value.code == 1
+        assert "Failed to load config: invalid source" in capsys.readouterr().out
 
     def test_mounted_gantry_uses_component_view_relationship_and_preserves_axis(self, monkeypatch):
         from fluid_control.cli.cli import _bootstrap_gantry
@@ -200,12 +233,13 @@ class TestValveTimed:
         assert set(gantry.axes) == {"Z", "X"}
         assert axis == "Z"
 
-    def test_cli_parses_json_source_without_component_scan_helpers(self):
+    def test_cli_uses_configurator_runtime_instead_of_local_json_parsing(self):
         from inspect import getsource
         from fluid_control.cli import cli as fluid_cli
 
         source = getsource(fluid_cli)
-        assert "json.loads(args.config.read_text" in source
+        assert "registry.resolve(args.component_id" in source
+        assert "json.loads" not in source
         assert "_discover_component_gantry_config" not in source
         assert "_wrap_gantry_config_for_bootstrap" not in source
 
