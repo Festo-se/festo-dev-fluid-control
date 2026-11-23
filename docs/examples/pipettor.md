@@ -15,8 +15,8 @@ versions of these snippets live in the repository under `examples/pipettor/`.
 ## 1. Loading a Configuration
 
 As with the `Dispenser`, configuration is a plain Python `dict`. You can load your
-own JSON file, or use the bundled example configuration (which ships inside the
-installed package and defines a `pipettor` component):
+own JSON file, or use the configurator package's canonical example configuration
+(which defines the `pipettor_1` component):
 
 ```python
 from fluid_control import Pipettor
@@ -24,7 +24,7 @@ from fluid_control.reference_config import load_example_config
 
 config = load_example_config()
 
-pipettor = Pipettor(config=config, component_id="pipettor")
+pipettor = Pipettor(config=config, component_id="pipettor_1")
 ```
 
 To load your own file instead:
@@ -36,7 +36,7 @@ from fluid_control import Pipettor
 with open("pipettor-config.json") as fh:
     config = json.load(fh)
 
-pipettor = Pipettor(config=config, component_id="pipettor")
+pipettor = Pipettor(config=config, component_id="pipettor_1")
 ```
 
 The `component_id` must match a key in `config["component_config"]["components"]`
@@ -104,24 +104,10 @@ engagement come from a connected `Gantry` — `gantry.axes` maps axis names to
 `axes_disable_for_pickup` config fields:
 
 ```python
-import json
-from applied_motion import Gantry
-from fluid_control import Pipettor
+from fluid_control import Pipettor, example_config_path
 
-with open("test-fluid-configs.json") as fh:
-    config = json.load(fh)
-
-components = config["component_config"]
-
-# The pipettor's mount axis ("ZP") and disabled X/Y axes live on "gantry_2".
-gantry = Gantry.from_config(components, name="gantry_2")
-
-pipettor = Pipettor(
-    config=components,
-    component_id="pipettor_1",
-    mount_arm=gantry.axes["ZP"],
-    disable_axes=(gantry.axes["X"], gantry.axes["Y"]),
-)
+# The selected component declares its gantry relationship and axis names.
+pipettor = Pipettor(config=example_config_path(), component_id="pipettor_1")
 
 pickup = pipettor.pickup_tips(duration=0.5)
 print(pickup.code, pickup.message)   # 0 'Tips picked up successfully'
@@ -155,7 +141,7 @@ from fluid_control.reference_config import load_example_config
 
 config = load_example_config()
 
-with Pipettor(config=config, component_id="pipettor") as pipettor:
+with Pipettor(config=config, component_id="pipettor_1") as pipettor:
     pipettor.aspirate({1: {"volume": 50.0, "liquid_class": "water"}})
     pipettor.dispense({1: {"volume": 50.0, "liquid_class": "water"}})
 # Pressure released and valves closed on __exit__

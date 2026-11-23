@@ -9,14 +9,17 @@
 ```json
 {
     "_comment": "Human-readable description string — ignored by the library.",
-    "spec_version": "3.0",
+    "spec_version": "4.0",
     "system_config": {
         "metadata": {}
     },
     "component_config": {
         "metadata": {},
         "components": {
-            "<component_id>": { ... }
+            "<component_id>": {
+                "component_spec_version": "3.0",
+                ...
+            }
         }
     }
 }
@@ -24,18 +27,19 @@
 
 | Field                           | Type       | Description                                         |
 | ------------------------------- | ---------- | --------------------------------------------------- |
-| `spec_version`                | `string` | Config schema version. Current version is`"3.0"`. |
+| `spec_version`                | `string` | Root configuration schema version. Current version is`"4.0"`. |
 | `system_config`               | `object` | System-level metadata (reserved for future use).    |
 | `component_config.components` | `object` | Map of`component_id` → component definition.     |
 
-When you construct a `Dispenser`, the `component_id` argument selects the matching key from `component_config.components`.
+When you construct a `Dispenser`, `component_id` selects a component from `component_config.components`. The packaged canonical superset includes `dispenser_1`, `dispenser_2`, and `pipettor_1`; load it with `load_example_config()`.
 
 ---
 
 ## Component Fields
 
 ```json
-"micro-dispenser": {
+"dispenser_2": {
+    "component_spec_version": "3.0",
     "component_class": "dispenser",
     "uuid": "0000-000000000-000000-001",
     "type": "pressure-over-liquid",
@@ -49,6 +53,7 @@ When you construct a `Dispenser`, the `component_id` argument selects the matchi
 | Field                   | Type       | Description                                              |
 | ----------------------- | ---------- | -------------------------------------------------------- |
 | `component_class`     | `string` | Must be`"dispenser"` for `Dispenser` instances.      |
+| `component_spec_version` | `string` | Required component schema version; fluid providers support`"3.0"`. |
 | `uuid`                | `string` | Unique identifier for this component. Used for auditing. |
 | `type`                | `string` | Must be`"pressure-over-liquid"`.                       |
 | `fluid-channel-count` | `int`    | Total number of fluid channels on the head.              |
@@ -83,21 +88,20 @@ Defines the hardware controllers: one pressure source and one valve controller.
 
 ```json
 "control_modules": {
-    "pressure": { ... },
+    "pressure_generator": { ... },
     "valve": { ... }
 }
 ```
 
-### Pressure Controller (`"pressure"`)
+### Pressure Generator (`"pressure_generator"`)
 
-Two pressure-source types are supported:
-
-#### Standalone PGVA
-
-Used for the micro-dispenser configuration. The library constructs a `PGVA` instance directly from this block.
+Fluid-control constructs the PGVA or other pressure generator from this generator block. A separate
+`pressure_regulator` entry may be present in the configurator superset, but
+automatic regulator runtime support is not part of this migration. The
+calibration field `parameters.pressure` remains the requested output pressure.
 
 ```json
-"pressure": {
+"pressure_generator": {
     "type": "generator",
     "passed-by-init": false,
     "name": "pgva",
@@ -267,23 +271,24 @@ For example, if `active_valve_terminals` is `[1]`, the calibration channel key m
 
 ## Complete Minimal Example
 
-The following is a minimal working config for a single-channel micro-dispenser with one liquid class:
+The following is a minimal custom config for a one-channel dispenser with one liquid class. For the canonical example, use `load_example_config()` and select `dispenser_1`.
 
 ```json
 {
-    "spec_version": "3.0",
+    "spec_version": "4.0",
     "system_config": {"metadata": {}},
     "component_config": {
         "metadata": {},
         "components": {
             "my-dispenser": {
+                "component_spec_version": "3.0",
                 "component_class": "dispenser",
                 "uuid": "0000-000000000-000000-001",
                 "type": "pressure-over-liquid",
                 "fluid-channel-count": 1,
                 "mounted": false,
                 "control_modules": {
-                    "pressure": {
+                    "pressure_generator": {
                         "type": "generator",
                         "passed-by-init": false,
                         "name": "pgva",

@@ -24,23 +24,16 @@ hardware_dispenser
     set.  Mark any test using this fixture with ``@pytest.mark.hardware``.
 """
 
-import json
 import socket
+from copy import deepcopy
 from os import getenv
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from fluid_control import Dispenser, Pipettor
+from fluid_control import Dispenser, Pipettor, load_example_config
 
 # ---------------------------------------------------------------------------
-# Path to bundled test fixtures
-# ---------------------------------------------------------------------------
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
 # ---------------------------------------------------------------------------
 # Config-builder helpers
 # ---------------------------------------------------------------------------
@@ -60,12 +53,13 @@ def _make_component(*, channels: int, active_channels: list[int]) -> dict:
     vol_a = {str(i): {"channel_index_coeff": 0.0, "volume_offset": -10.40199499 - i * 0.1} for i in active_channels}
     # TODO: Does this config match the new schema?
     return {
+        "component_spec_version": "3.0",
         "uuid": "0000-000000000-000000-001",
         "type": "pressure-over-liquid",
         "fluid-channel-count": channels,
         "control_mode": "python",
         "control_modules": {
-            "pressure": {
+            "pressure_generator": {
                 "name": "pgva",
                 "uuid": 1,
                 "interface": {"type": "tcp/ip", "ip": "192.168.10.102", "port": 502},
@@ -101,7 +95,7 @@ def dispenser_config() -> dict:
     """Minimal 2-channel dispenser config; no file I/O, no hardware."""
     component = _make_component(channels=2, active_channels=[1, 2])
     component["component_class"] = "dispenser"
-    return {"components": {"dispenser_1": component}}
+    return {"spec_version": "4.0", "components": {"dispenser_1": component}}
 
 
 @pytest.fixture()
@@ -109,7 +103,7 @@ def eight_channel_pipettor_config() -> dict:
     """8-channel pipettor config; no file I/O, no hardware."""
     component = _make_component(channels=8, active_channels=list(range(1, 9)))
     component["component_class"] = "pipettor"
-    return {"components": {"pipettor_1": component}}
+    return {"spec_version": "4.0", "components": {"pipettor_1": component}}
 
 
 # ---------------------------------------------------------------------------
@@ -264,35 +258,29 @@ def hardware_dispenser():
         pytest.skip("DISPENSER_PGVA_IP and DISPENSER_VAEM_IP not set — skipping hardware tests")
 
     component = _make_component(channels=2, active_channels=[1, 2])
-    component["control_modules"]["pressure"]["interface"]["ip"] = pgva_ip
+    component["control_modules"]["pressure_generator"]["interface"]["ip"] = pgva_ip
     component["control_modules"]["valve"]["interface"]["ip"] = vaem_ip
     component["component_class"] = "dispenser"
-    config = {"components": {"dispenser_1": component}}
+    config = {"spec_version": "4.0", "components": {"dispenser_1": component}}
     return Dispenser(config=config)
 
 
 # ---------------------------------------------------------------------------
-# test-config.json fixtures
+# Canonical superset config fixtures
 #
-# The JSON file is stored under tests/fixtures/ so the test suite remains
-# self-contained after the top-level config files are removed from the repo.
+# Canonical superset config is loaded from the packaged configurator resource.
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
 def test_config() -> dict:
-    """Load the bundled test-config.json from tests/fixtures/.
-
-    Session-scoped: the file is read once per test session.
-    """
-    config_path = FIXTURES_DIR / "test-config.json"
-    with config_path.open() as fh:
-        return json.load(fh)
+    """Load the configurator package's canonical superset configuration."""
+    return load_example_config()
 
 
 @pytest.fixture()
 def test_dispenser(mocker, test_config):
-    """Dispenser built from the real test-config.json, PGVA + VAEM mocked.
+    """Dispenser built from the canonical config, PGVA + VAEM mocked.
 
     Exposes ``.mock_pressure`` and ``.mock_vaem`` for per-test assertion.
     The test dispenser component has:
@@ -307,7 +295,7 @@ def test_dispenser(mocker, test_config):
     mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
     mocker.patch("fluid_control.fluid_control.sleep")
 
-    instance = Dispenser(config=test_config["component_config"])
+    instance = Dispenser(config=test_config, component_id="dispenser_1")
     instance.mock_pressure = mock_pressure
     instance.mock_vaem = mock_vaem
     return instance
@@ -315,7 +303,7 @@ def test_dispenser(mocker, test_config):
 
 @pytest.fixture()
 def test_pipettor(mocker, test_config):
-    """Pipettor built from the real test-config.json, PGVA + VAEM mocked.
+    """Pipettor built from the canonical config, PGVA + VAEM mocked.
 
     Exposes ``.mock_pressure`` and ``.mock_vaem`` for per-test assertion.
     The test pipettor component has:
@@ -330,14 +318,16 @@ def test_pipettor(mocker, test_config):
     mocker.patch("fluid_control.fluid_control.VAEM", return_value=mock_vaem)
     mocker.patch("fluid_control.fluid_control.sleep")
 
-    instance = Pipettor(config=test_config["component_config"])
+    config = deepcopy(test_config)
+    config["component_config"]["components"]["pipettor_1"].pop("mount_gantry", None)
+    instance = Pipettor(config=config, component_id="pipettor_1")
     instance.mock_pressure = mock_pressure
     instance.mock_vaem = mock_vaem
     return instance
 
 
 # ---------------------------------------------------------------------------
-# test hardware fixtures — real devices, IPs taken from test-config.json
+# test hardware fixtures — real devices, IPs taken from the canonical config
 #
 # Run with:
 #     uv run pytest -m hardware -v
@@ -384,7 +374,7 @@ def _close_device(instance) -> None:
 
 @pytest.fixture(scope="module")
 def test_hardware_dispenser(test_config):
-    """Real Dispenser connected to the test hardware (PGVA 192.168.10.102, VAEM 192.168.10.27).
+    """Real Dispenser connected to test hardware using the canonical endpoints.
 
     Module-scoped so the TCP connections are opened once per test module.
     Skipped automatically if either device is unreachable.
@@ -395,18 +385,21 @@ def test_hardware_dispenser(test_config):
     modules = test_config["component_config"]["components"]["dispenser_1"]["control_modules"]
     _require_reachable(
         [
-            (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
+            (
+                modules["pressure_generator"]["interface"]["ip"],
+                modules["pressure_generator"]["interface"]["port"],
+            ),
             (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
         ]
     )
-    instance = Dispenser(config=test_config["component_config"])
+    instance = Dispenser(config=test_config, component_id="dispenser_1")
     yield instance
     _close_device(instance)
 
 
 @pytest.fixture(scope="module")
 def test_hardware_pipettor(test_config):
-    """Real Pipettor connected to the test hardware (PGVA 192.168.0.23, VAEM 192.168.0.27).
+    """Real Pipettor connected to test hardware using the canonical endpoints.
 
     Module-scoped so the TCP connections are opened once per test module.
     Skipped automatically if either device is unreachable.
@@ -417,10 +410,13 @@ def test_hardware_pipettor(test_config):
     modules = test_config["component_config"]["components"]["pipettor_1"]["control_modules"]
     _require_reachable(
         [
-            (modules["pressure"]["interface"]["ip"], modules["pressure"]["interface"]["port"]),
+            (
+                modules["pressure_generator"]["interface"]["ip"],
+                modules["pressure_generator"]["interface"]["port"],
+            ),
             (modules["valve"]["interface"]["ip"], modules["valve"]["interface"]["port"]),
         ]
     )
-    instance = Pipettor(config=test_config["component_config"])
+    instance = Pipettor(config=test_config, component_id="pipettor_1")
     yield instance
     _close_device(instance)

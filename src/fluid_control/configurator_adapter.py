@@ -10,7 +10,6 @@ from configurator import COMPAT, ComponentDependency, ComponentView, Registratio
 from applied_motion import Axis
 
 from fluid_control.aspirator import Aspirator
-from fluid_control.device_config import DeviceConfig
 from fluid_control.dispenser import Dispenser
 from fluid_control.pipettor import Pipettor
 
@@ -87,7 +86,7 @@ def _pipettor_axes(
     return mount_arm, disabled
 
 
-def _validate_component_view(view: ComponentView, expected_type: str) -> DeviceConfig:
+def _validate_component_view(view: ComponentView, expected_type: str) -> Mapping[str, Any]:
     """Validate the minimum view contract required by a fluid builder.
 
     Args:
@@ -95,7 +94,7 @@ def _validate_component_view(view: ComponentView, expected_type: str) -> DeviceC
         expected_type: Runtime component type required by the builder.
 
     Returns:
-        A pre-resolved device configuration retaining the selected component mapping.
+        The selected component mapping, shared with the runtime instance.
 
     Raises:
         TypeError: If ``view`` is not a configurator component view or its
@@ -112,10 +111,7 @@ def _validate_component_view(view: ComponentView, expected_type: str) -> DeviceC
         raise TypeError("ComponentView data must be a mapping")
     if not isinstance(view.root, Mapping):
         raise TypeError("ComponentView root must be a mapping")
-    # DeviceConfig is created from the already-selected component only. The
-    # compatibility constructor receives this view and therefore does not
-    # select or parse the component a second time.
-    return DeviceConfig({"components": {view.name: cast(dict[str, Any], view.data)}}, view.name)
+    return view.data
 
 
 def validate_fluid_view(view: ComponentView, **_: Any) -> None:
@@ -131,12 +127,37 @@ def validate_fluid_view(view: ComponentView, **_: Any) -> None:
     """
     if view.component_type not in {"dispenser", "pipettor", "aspirator"}:
         raise ValueError(f"Unsupported fluid component type: {view.component_type!r}")
-    device_config = _validate_component_view(view, view.component_type)
-    device_config.build_pressures()
-    for liquid_class, processes in device_config.calibration.items():
-        for process in processes:
-            device_config.flow_coefficients(liquid_class, process)
-            device_config.volume_offset_coefficients(liquid_class, process)
+    component = _validate_component_view(view, view.component_type)
+    if view.root.get("spec_version") != "4.0":
+        raise ValueError("Fluid-control configs require root spec_version '4.0'")
+    control_modules = component["control_modules"]
+    pressure_module = control_modules["pressure_generator"]
+    valve_module = control_modules["valve"]
+    active_channels = valve_module["active_valve_terminals"]
+    pressure_interface = pressure_module["interface"]
+    valve_interface = valve_module["interface"]
+    _ = {
+        "active_channel_count": len(active_channels),
+        "channel_count": component["fluid-channel-count"],
+        "pressure_module_name": pressure_module["name"],
+        "pressure_module_uuid": pressure_module["uuid"],
+        "pressure_interface_type": pressure_interface["type"],
+        "pressure_interface_ip": pressure_interface["ip"],
+        "pressure_interface_port": pressure_interface["port"],
+        "valve_module_name": valve_module["name"],
+        "valve_interface_type": valve_interface["type"],
+        "valve_interface_ip": valve_interface["ip"],
+        "valve_interface_port": valve_interface["port"],
+    }
+    for valve_info in valve_module["valve_type"].values():
+        _ = valve_info["type"]["error-handling"]
+
+    calibration = component["calibration"]
+    for processes in calibration.values():
+        for entry in processes.values():
+            _ = entry["parameters"]["pressure"]
+            _ = entry["flow_coefficients"]
+            _ = entry["volume_offset_coefficients"]
 
 
 def build_dispenser_from_view(
@@ -154,21 +175,21 @@ def build_dispenser_from_view(
         mode: Configurator validation mode accepted by the builder protocol.
         options: Configurator build options accepted by the builder protocol.
         resolver: Configurator resolver accepted by the builder protocol.
+        runtime: Shared runtime registry used to bind the built component.
 
     Returns:
-        A dispenser constructed through its existing compatibility signature.
+        A dispenser initialized from the selected component mapping.
 
     Raises:
         TypeError: If the view does not satisfy the component-view contract.
         ValueError: If the view is not a dispenser component.
     """
-    device_config = _validate_component_view(view, "dispenser")
+    component = _validate_component_view(view, "dispenser")
     logger.debug("Building dispenser %r from selected configurator view", view.name)
     runtime_options = dict(options or {})
-    instance = Dispenser(
-        config={"components": {view.name: view.data}},
-        component_id=view.name,
-        device_config=device_config,
+    instance = Dispenser._from_component_data(
+        view.name,
+        cast(dict, component),
         pressure_control=runtime_options.get("pressure_control"),
         valve_control=runtime_options.get("valve_control"),
     )
@@ -191,6 +212,8 @@ def build_pipettor_from_view(
         mode: Configurator validation mode accepted by the builder protocol.
         options: Configurator build options accepted by the builder protocol.
         resolver: Configurator resolver accepted by the builder protocol.
+        runtime: Shared runtime registry used to bind the built component.
+        dependencies: Already-built components required by this pipettor.
 
     Returns:
         A pipettor constructed through its existing compatibility signature.
@@ -199,14 +222,13 @@ def build_pipettor_from_view(
         TypeError: If the view does not satisfy the component-view contract.
         ValueError: If the view is not a pipettor component.
     """
-    device_config = _validate_component_view(view, "pipettor")
+    component = _validate_component_view(view, "pipettor")
     logger.debug("Building pipettor %r from selected configurator view", view.name)
     runtime_options = dict(options or {})
     mount_arm, disable_axes = _pipettor_axes(view, runtime_options, dependencies or {})
-    instance = Pipettor(
-        config={"components": {view.name: view.data}},
-        component_id=view.name,
-        device_config=device_config,
+    instance = Pipettor._from_component_data(
+        view.name,
+        cast(dict, component),
         mount_arm=mount_arm,
         disable_axes=disable_axes,
         pressure_control=runtime_options.get("pressure_control"),
@@ -230,6 +252,7 @@ def build_aspirator_from_view(
         mode: Configurator validation mode accepted by the builder protocol.
         options: Configurator build options accepted by the builder protocol.
         resolver: Configurator resolver accepted by the builder protocol.
+        runtime: Shared runtime registry used to bind the built component.
 
     Returns:
         An aspirator constructed through its existing compatibility signature.
@@ -238,13 +261,12 @@ def build_aspirator_from_view(
         TypeError: If the view does not satisfy the component-view contract.
         ValueError: If the view is not an aspirator component.
     """
-    device_config = _validate_component_view(view, "aspirator")
+    component = _validate_component_view(view, "aspirator")
     logger.debug("Building aspirator %r from selected configurator view", view.name)
     runtime_options = dict(options or {})
-    instance = Aspirator(
-        config={"components": {view.name: view.data}},
-        component_id=view.name,
-        device_config=device_config,
+    instance = Aspirator._from_component_data(
+        view.name,
+        cast(dict, component),
         pressure_control=runtime_options.get("pressure_control"),
         valve_control=runtime_options.get("valve_control"),
     )
@@ -263,6 +285,7 @@ def dispenser_registration() -> Registration:
         builder=build_dispenser_from_view,
         validator=validate_fluid_view,
         cleanup=_cleanup_fluid_control,
+        schema_versions=frozenset({"3.0"}),
     )
 
 
@@ -279,6 +302,7 @@ def pipettor_registration() -> Registration:
         validator=validate_fluid_view,
         cleanup=_cleanup_fluid_control,
         component_dependencies=_pipettor_dependencies,
+        schema_versions=frozenset({"3.0"}),
     )
 
 
@@ -294,6 +318,7 @@ def aspirator_registration() -> Registration:
         builder=build_aspirator_from_view,
         validator=validate_fluid_view,
         cleanup=_cleanup_fluid_control,
+        schema_versions=frozenset({"3.0"}),
     )
 
 

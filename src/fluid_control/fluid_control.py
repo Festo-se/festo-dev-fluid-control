@@ -21,9 +21,6 @@ from vaem import VAEM, VAEMTCPConfig
 from applied_motion import Axis
 from configurator import RuntimeRegistry
 
-from fluid_control.device_config import DeviceConfig
-
-
 # Library modules must not configure the root logger or open log files on import;
 # that is the responsibility of the application entry point. Attach a NullHandler so
 # log records are silently dropped unless the application configures logging.
@@ -183,16 +180,10 @@ class PressureOverLiquidControl(FluidControl):
         disable_axes: tuple[Axis, ...] = (),
         pressure_control: PGVA | None = None,
         valve_control: VAEM | None = None,
-        device_config: DeviceConfig | None = None,
-        # TODO: Remove device_config nonsense
         registry: RuntimeRegistry | None = None,
     ):
         """Resolve ordinary config-backed construction through a shared runtime."""
         if cls is PressureOverLiquidControl:
-            return super().__new__(cls)
-        if device_config is not None:
-            if registry is not None:
-                raise ValueError("registry-backed construction requires a config-selected component")
             return super().__new__(cls)
         if config is None:
             if registry is not None:
@@ -219,19 +210,106 @@ class PressureOverLiquidControl(FluidControl):
             source=config if registry is not None else None,
             options=options,
         )
+        instance._registry_owner = registry is None
         for attribute in ("mount_arm", "pressure_control", "valve_control"):
             supplied = options.get(attribute)
             if supplied is not None and getattr(instance, attribute, None) is not supplied:
                 raise ValueError(f"Component {name!r} is already initialized with a different {attribute}")
-        supplied_axes = options.get("disable_axes")
-        # TODO: Fix this supplied_axes nonsense
-        if supplied_axes is not None:
+        if disable_axes:
             existing_axes = tuple(getattr(instance, "disable_axes", ()))
-            if len(existing_axes) != len(supplied_axes) or any(
-                existing is not supplied for existing, supplied in zip(existing_axes, supplied_axes, strict=True)
+            if len(existing_axes) != len(disable_axes) or any(
+                existing is not supplied for existing, supplied in zip(existing_axes, disable_axes, strict=True)
             ):
                 raise ValueError(f"Component {name!r} is already initialized with different disable_axes")
         return instance
+
+    @classmethod
+    def _from_component_data(
+        cls,
+        component_id: str,
+        component: dict,
+        *,
+        mount_arm: Axis | None = None,
+        disable_axes: tuple[Axis, ...] = (),
+        pressure_control: PGVA | None = None,
+        valve_control: VAEM | None = None,
+    ):
+        """Create an instance directly from an already-selected component mapping."""
+        instance = object.__new__(cls)
+        instance._initialize_component_data(
+            component_id,
+            component,
+            mount_arm=mount_arm,
+            disable_axes=disable_axes,
+            pressure_control=pressure_control,
+            valve_control=valve_control,
+        )
+        return instance
+
+    def _initialize_component_data(
+        self,
+        component_id: str,
+        component: dict,
+        *,
+        mount_arm: Axis | None = None,
+        disable_axes: tuple[Axis, ...] = (),
+        pressure_control: PGVA | None = None,
+        valve_control: VAEM | None = None,
+    ) -> None:
+        """Initialize runtime state from the selected component without reparsing it."""
+        if type(self) is PressureOverLiquidControl:
+            raise TypeError(
+                "PressureOverLiquidControl is an abstract base and cannot be instantiated directly; "
+                "use a concrete subclass such as Dispenser, Aspirator, or Pipettor."
+            )
+
+        self.component_id = component_id
+        self.registry: RuntimeRegistry | None = None
+        self._runtime_registry: RuntimeRegistry | None = None
+        self._registry_owner = False
+        self._owned_controllers: list[tuple[str, object]] = []
+        self._closed = False
+        self.config = component
+        self._pressure_generator = component["control_modules"]["pressure_generator"]
+        self._valve_module = component["control_modules"]["valve"]
+        self.active_channels = self._valve_module["active_valve_terminals"]
+        self.active_valve_count = len(self.active_channels)
+        self.channel_count = component["fluid-channel-count"]
+        self.valve_error_handling = all(
+            valve_info["type"]["error-handling"] for valve_info in self._valve_module["valve_type"].values()
+        )
+        logger.info(f"Initializing {self.component_type} (id={component_id!r})")
+
+        try:
+            if pressure_control is not None:
+                self.pressure_control = pressure_control
+            else:
+                self._init_pressure_control()
+
+            if valve_control is not None:
+                self.valve_control = valve_control
+                self._set_valve_error_handling()
+            else:
+                self._init_valve_control()
+
+            self.fluid_control_status = Status()
+            self.mount_arm: Axis | None = mount_arm
+            self.is_static = mount_arm is None
+            self.disable_axes = disable_axes
+            for valve in self.active_channels:
+                self.valve_control.deselect_valve(valve_id=valve)
+            self.set_pressures()
+            self.timing_model = TimingModel()
+            self.timing_model.build(self.config["calibration"])
+            self.valve_control_timing_functions = self.timing_model.functions
+            logger.info(
+                f"{self.component_type} initialization complete — channels={self.active_channels}, "
+                f"liquid_classes={list(self.config['calibration'].keys())}, "
+                f"static={self.is_static}"
+            )
+        except Exception:
+            self._close_owned_controllers()
+            raise
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Enforce that every concrete subclass declares a non-empty ``component_type``."""
@@ -248,7 +326,6 @@ class PressureOverLiquidControl(FluidControl):
         disable_axes: tuple[Axis, ...] = (),  # TODO: Take from config
         pressure_control: PGVA | None = None,
         valve_control: VAEM | None = None,
-        device_config: DeviceConfig | None = None,
         registry: RuntimeRegistry | None = None,
     ) -> None:
         """
@@ -269,115 +346,35 @@ class PressureOverLiquidControl(FluidControl):
             valve_control: Instance of already-instantiated valve control device.
                 Opinionated choice that this is a VAEM with some support for single valves controlled
                 by the DO pin on the PGVA at present.
-            device_config: Optional pre-resolved component configuration view supplied by the
-                configurator builder. When omitted, the legacy ``config`` and ``component_id``
-                resolution path is used.
             registry: Optional shared runtime. Config-backed construction joins this runtime;
                 supplied controllers are used for first construction and remain caller-owned.
-            registry: Optional shared runtime. When provided, config-backed
-                construction resolves or joins the selected component in that session; injected
-                controllers are passed to its builder and remain caller-owned.
 
         Examples:
             Construct from a configuration dict (the library opens the hardware
             connections for the selected component):
 
             >>> import json
-            >>> from fluid_control import Dispenser
-            >>> with open("micro-dispenser-config.json") as fh:
-            ...     config = json.load(fh)
-            >>> dispenser = Dispenser(config=config, component_id="micro-dispenser")
-
-            Select one component from a full multi-component instrument
-            configuration; both the pressure (PGVA) and valve (VAEM) controllers
-            are opened internally from that config, with no pre-instantiated
-            hardware objects supplied:
-
-            >>> with open("test-fluid-configs.json") as fh:
-            ...     config = json.load(fh)
-            >>> dispenser = Dispenser(config=config, component_id="micro-dispenser")
-
-            Re-use already-initialised hardware controllers (for example a shared
-            VAEM or an externally regulated pressure source) by passing them in
-            directly, skipping internal hardware initialisation:
-
-            >>> from fluid_control import Dispenser, PressureControl
-            >>> macro = Dispenser(
-            ...     config=config,
-            ...     component_id="macro-dispenser",
-            ...     pressure_control=PressureControl(gantry),
-            ...     valve_control=micro_dispenser.valve_control,
-            ... )
+            >>> from fluid_control import Dispenser, load_example_config
+            >>> dispenser = Dispenser(config=load_example_config(), component_id="dispenser_2")
+            >>> dispenser.close()
 
         """
-        runtime = getattr(self, "_runtime_registry", None)
-        if runtime is not None:
-            if registry is not None and registry is not runtime:
-                raise ValueError("The supplied registry does not match the component's shared runtime")
-            self.registry = runtime
-            return
-        if registry is not None:
-            raise ValueError("registry requires config-backed construction through the shared runtime")
-        # TODO: If neither config nor pressure/valve control passed in, init error
         if type(self) is PressureOverLiquidControl:
             raise TypeError(
                 "PressureOverLiquidControl is an abstract base and cannot be instantiated directly; "
                 "use a concrete subclass such as Dispenser, Aspirator, or Pipettor."
             )
-
-        if component_id is None:
-            component_id = device_config.component_id if device_config is not None else f"{self.component_type}_1"
-        self.component_id = component_id
-        self.registry: RuntimeRegistry | None = None
-        self._runtime_registry: RuntimeRegistry | None = None
-        self._registry_owner = False
-        self._owned_controllers: list[tuple[str, object]] = []
-        self._closed = False
-        logger.info(f"Initializing {self.component_type} (id={component_id!r})")
-        self.device_config = device_config if device_config is not None else DeviceConfig(config, component_id)
-        self.config = self.device_config.raw
-        self.active_channels = self.device_config.active_channels
-        self.active_valve_count = self.device_config.active_valve_count
-
-        try:
-            if pressure_control is not None:
-                self.pressure_control = pressure_control
-            else:
-                self._init_pressure_control()
-
-            if valve_control is not None:
-                self.valve_control = valve_control
-                self._set_valve_error_handling()
-            else:
-                self._init_valve_control()
-
-            self.fluid_control_status = Status()
-            self.channel_count = self.device_config.channel_count
-            # Always bind mount_arm (None when static) so callers can rely on the attribute
-            # existing; _require_arm() enforces the static/dynamic contract.
-            self.mount_arm: Axis | None = mount_arm  # TODO: make this a param input via config
-            self.is_static = mount_arm is None
-            self.disable_axes = disable_axes
-            for valve in self.active_channels:  # TODO for valve in self.active_channels
-                self.valve_control.deselect_valve(valve_id=valve)  # TODO
-            self.set_pressures()
-            # TODO: in json config figure out how to do multiple calibrations at different pressures
-            # TODO: modify config such that multiple pressures can have calibration per process  in the json
-            self.timing_model = TimingModel()
-            self.timing_model.build(self.device_config.calibration)
-            self.valve_control_timing_functions = self.timing_model.functions
-            logger.info(
-                f"{self.component_type} initialization complete — channels={self.active_channels}, "
-                f"liquid_classes={list(self.config['calibration'].keys())}, "
-                f"static={self.is_static}"
-            )
-        except Exception:
-            self._close_owned_controllers()
-            raise
+        if self._runtime_registry is not None:
+            # The provider selected and initialized this instance in __new__.
+            return
+        raise ValueError("Fluid-control components must be created through a configurator provider")
 
     def set_pressures(self) -> None:
         """Populate ``self.pressures`` from the calibration config for each liquid class and process."""
-        self.pressures = self.device_config.build_pressures()
+        self.pressures = {
+            liquid_class: {process: entry["parameters"]["pressure"] for process, entry in processes.items()}
+            for liquid_class, processes in self.config["calibration"].items()
+        }
 
     def get_liquid_classes(self) -> KeysView[str]:
         """
@@ -388,47 +385,51 @@ class PressureOverLiquidControl(FluidControl):
             ['water', 'ethylene-glycol10%']
 
         """
-        return self.device_config.liquid_classes()
+        return self.config["calibration"].keys()
 
     def _init_pressure_control(self) -> None:
         """Initialize the PGVA pressure controller from the device configuration."""
-        iface = self.device_config.pressure_interface
-        logger.debug(f"Initializing Pressure Controller {iface.name}.")
-        if "pgva" not in iface.name:
+        module = self._pressure_generator
+        iface = module["interface"]
+        name = module["name"]
+        logger.debug(f"Initializing Pressure Controller {name}.")
+        if "pgva" not in name:
             raise NotImplementedError("Pressure control without a PGVA is not implemented")
 
         self.pressure_control_config = PGVATCPConfig(
-            interface=iface.interface_type,
-            unit_id=iface.unit_id,
-            ip=iface.ip,
-            port=iface.port,
+            interface=iface["type"],
+            unit_id=module["uuid"],
+            ip=iface["ip"],
+            port=iface["port"],
         )
         self.pressure_control = PGVA(config=self.pressure_control_config)
         self._owned_controllers.append(("pressure", self.pressure_control))
-        logger.debug(f"Pressure controller {iface.name} initialized at {iface.ip}:{iface.port}")
+        logger.debug(f"Pressure controller {name} initialized at {iface['ip']}:{iface['port']}")
 
     def _init_valve_control(self) -> None:
         """Initialize the VAEM valve controller from the device configuration."""
-        iface = self.device_config.valve_interface
-        logger.debug(f"Initializing valve control module {iface.name}.")
-        if "vaem" not in iface.name:
+        module = self._valve_module
+        iface = module["interface"]
+        name = module["name"]
+        logger.debug(f"Initializing valve control module {name}.")
+        if "vaem" not in name:
             raise NotImplementedError("Pressure control without a VAEM is not implemented")
 
         self.valve_control_config = VAEMTCPConfig(
-            interface=iface.interface_type,
-            unit_id=iface.unit_id,
-            ip=iface.ip,
-            port=iface.port,
+            interface=iface["type"],
+            unit_id=1,
+            ip=iface["ip"],
+            port=iface["port"],
         )
         self.valve_control = VAEM(config=self.valve_control_config)
         self._owned_controllers.append(("valve", self.valve_control))
-        logger.debug(f"Valve controller {iface.name} initialized at {iface.ip}:{iface.port}")
+        logger.debug(f"Valve controller {name} initialized at {iface['ip']}:{iface['port']}")
         self._set_valve_error_handling()
 
     def _set_valve_error_handling(self) -> None:
         """Apply the aggregate valve error-handling setting to the valve controller."""
-        name = self.device_config.valve_interface.name
-        self._valve_error_handling_status = self.device_config.valve_error_handling
+        name = self._valve_module["name"]
+        self._valve_error_handling_status = self.valve_error_handling
         self.valve_control.set_error_handling(activate=int(self._valve_error_handling_status))
         logger.debug(f"Valve controller {name} module-set error handling status: {self._valve_error_handling_status}")
         logger.debug(
@@ -458,7 +459,7 @@ class PressureOverLiquidControl(FluidControl):
 
         """
         self.config["calibration"] = calib
-        self.timing_model.build(self.device_config.calibration)
+        self.timing_model.build(self.config["calibration"])
 
     def _slope_intercept_func(self, channel_index_coeff: float, volume_offset: float) -> Callable[[float], float]:
         """Return a linear ``slope * var + offset`` function of the active-channel count."""
@@ -502,6 +503,7 @@ class PressureOverLiquidControl(FluidControl):
         # TODO: Mix command doesn't work well with this formulation of the liquid handlinng algorithm
         try:
             longest_open_time = 0
+            liquid_class: str | None = None
 
             for channel, command_params in liquid_dict.items():
                 liquid_class = command_params["liquid_class"]
@@ -519,6 +521,8 @@ class PressureOverLiquidControl(FluidControl):
                     process=process,
                 )
                 longest_open_time = max(new_time, longest_open_time)
+            if liquid_class is None:
+                raise ValueError("At least one channel command is Required")
             logger.debug(f"Waiting for {process} pressure: {self.pressures[liquid_class][process]}")
             self._wait_output_pressure(
                 self.pressures[liquid_class][process]

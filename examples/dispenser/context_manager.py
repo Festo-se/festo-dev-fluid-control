@@ -20,7 +20,7 @@ from fluid_control import Dispenser, example_config_path
 
 def main() -> None:
     """Dispense within a context manager and print liquid classes and status."""
-    with Dispenser(config=example_config_path(), component_id="micro-dispenser") as dispenser:
+    with Dispenser(config=example_config_path(), component_id="dispenser_1") as dispenser:
         print("Liquid classes:", list(dispenser.get_liquid_classes()))
 
         dispenser.dispense({1: {"volume": 30.0, "liquid_class": "water"}})

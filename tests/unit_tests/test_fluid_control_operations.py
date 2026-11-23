@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from configurator import BuilderError
 
 from fluid_control.fluid_control import OperationResult
 
@@ -60,6 +61,10 @@ def _controller_pair() -> tuple[MagicMock, MagicMock, MagicMock, MagicMock]:
 
 class TestDispense:
     _DISPENSE_CMD = {1: {"volume": 100, "liquid_class": "water"}}
+
+    def test_empty_command_raises_value_error(self, dispenser):
+        with pytest.raises(ValueError, match="At least one channel command is required"):
+            dispenser.dispense({})
 
     def test_calls_set_output_pressure_with_calibration_pressure(self, dispenser):
         dispenser.dispense(self._DISPENSE_CMD)
@@ -589,10 +594,10 @@ class TestPressureOverLiquidControlContextManager:
 
         from fluid_control import Dispenser
 
-        with pytest.raises(RuntimeError) as caught:
+        with pytest.raises(BuilderError) as caught:
             Dispenser(config=dispenser_config)
 
-        assert caught.value is original_error
+        assert caught.value.cause is original_error
         pressure_client.close.assert_called_once_with()
 
 

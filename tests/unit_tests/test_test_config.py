@@ -1,11 +1,11 @@
-"""Tests that exercise the real test-config.json calibration data.
+"""Tests that exercise the configurator's canonical superset calibration data.
 
-These tests use the actual coefficients from the test deployment config
+These tests use the actual coefficients from the shared canonical config
 to ensure calibration math, liquid-class loading, and dispense/aspirate
 operations behave correctly with production data.  PGVA, VAEM, and ``sleep``
 are still mocked — no hardware required.
 
-test-config.json topology recap
+Canonical config topology recap
 ----------------------------------
 dispenser component
     channels        : 1, 2  (active_valve_terminals [1, 2])
@@ -23,33 +23,20 @@ pipettor component
     pressures       : dispense 70 mbar, aspirate -100 mbar
 """
 
-import json
-from pathlib import Path
-
 import pytest
 
 from fluid_control import Dispenser, Pipettor
 from fluid_control.fluid_control import PressureOverLiquidControl
 
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
-
-
 # ---------------------------------------------------------------------------
-# Config file existence and structure
+# Canonical config structure
 # ---------------------------------------------------------------------------
 
 
 class TestTestConfigFile:
-    def test_fixture_file_exists(self):
-        assert (FIXTURES_DIR / "test-config.json").is_file()
-
-    def test_fixture_file_is_valid_json(self):
-        with (FIXTURES_DIR / "test-config.json").open() as fh:
-            data = json.load(fh)
-        assert isinstance(data, dict)
-
     def test_component_config_key_present(self, test_config):
         assert "component_config" in test_config
+        assert test_config["spec_version"] == "4.0"
 
     def test_dispenser_component_present(self, test_config):
         assert any(
@@ -70,6 +57,18 @@ class TestTestConfigFile:
 class TestTestDispenserInit:
     def test_creates_dispenser_instance(self, test_dispenser):
         assert isinstance(test_dispenser, Dispenser)
+
+    def test_selects_pressure_generator_when_regulator_is_also_declared(self, test_dispenser, test_config):
+        component = test_config["component_config"]["components"]["dispenser_1"]
+        generator = component["control_modules"]["pressure_generator"]
+
+        assert "pressure_regulator" in component["control_modules"]
+        assert test_dispenser.pressure_control_config.ip == generator["interface"]["ip"]
+
+    def test_preserves_two_channel_calibration(self, test_dispenser):
+        assert test_dispenser.channel_count == 2
+        assert test_dispenser.active_channels == [1, 2]
+        assert set(test_dispenser.config["calibration"]["water"]["dispense"]["flow_coefficients"]) == {"1", "2"}
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Hardware / integration tests for festo-dev-fluid-control against test hardware.
 
-Uses the configuration from ``tests/fixtures/test-config.json``:
-    dispenser  — PGVA 192.168.10.102, VAEM 192.168.10.27, 2 channels
+Uses the configurator's canonical superset configuration:
+    dispenser  — PGVA 192.168.10.102, VAEM 192.168.10.31, 2 channels
     pipettor   — PGVA 192.168.0.23,   VAEM 192.168.0.27,  8 channels
 
 These tests are skipped automatically unless ``FESTO_HARDWARE_TESTS=1`` is
@@ -114,7 +114,7 @@ class TestHardwarePipettorOperations:
 # Tip handling — hardware tests not applicable without a mount_arm
 #
 # ``eject_tips`` and ``pickup_tips`` require a non-static Pipettor, i.e. one
-# constructed with a ``mount_arm`` argument.  The current test-config.json
+# constructed with a ``mount_arm`` argument. The canonical pipettor
 # pipettor component is operated without a mount arm (``is_static=True``),
 # so calling either method raises ``NotImplementedError`` on live hardware
 # exactly as it does in the unit tests.

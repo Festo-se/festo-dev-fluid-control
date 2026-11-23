@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from configurator import BuilderError
 from fluid_control import Dispenser, Pipettor
 from fluid_control.fluid_control import PressureOverLiquidControl
 
@@ -131,10 +132,14 @@ class TestDispenserInit:
         mocker.patch("fluid_control.fluid_control.PGVA")
         mocker.patch("fluid_control.fluid_control.VAEM")
         # Must not contain the substring 'pgva'; the guard uses 'pgva' not in name
-        dispenser_config["components"]["dispenser_1"]["control_modules"]["pressure"]["name"] = "mass-flow-controller"
+        dispenser_config["components"]["dispenser_1"]["control_modules"]["pressure_generator"][
+            "name"
+        ] = "mass-flow-controller"
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(BuilderError) as error:
             Dispenser(config=dispenser_config)
+
+        assert isinstance(error.value.cause, NotImplementedError)
 
     def test_non_vaem_valve_module_raises_not_implemented(self, mocker, dispenser_config):
         mocker.patch("fluid_control.fluid_control.PGVA")
@@ -142,8 +147,10 @@ class TestDispenserInit:
         # Must not contain the substring 'vaem'; the guard uses 'vaem' not in name
         dispenser_config["components"]["dispenser_1"]["control_modules"]["valve"]["name"] = "digital-output"
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(BuilderError) as error:
             Dispenser(config=dispenser_config)
+
+        assert isinstance(error.value.cause, NotImplementedError)
 
 
 class TestPipettorInit:

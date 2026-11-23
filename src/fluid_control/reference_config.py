@@ -1,34 +1,27 @@
 # SPDX-FileCopyrightText: 2026 Festo SE & Co. KG
 # SPDX-License-Identifier: MIT
 # Provenance-ID: FLUID@8da843a2bf8f846e340913e72e5c03e696455e3b
-# TODO: Make unnecessary and remove
+"""Access the configurator package's canonical example instrument configuration.
 
-"""Access to the bundled example instrument configuration.
-
-Ships a small, valid reference configuration inside the installed package so that
-docstring examples, the example scripts, and end users can obtain a working
-configuration without a repository checkout. The configuration contains a
-``micro-dispenser`` (dispenser) and a ``pipettor`` component; its network
-addresses are placeholders and must be replaced before connecting to hardware.
+This package delegates the reference-config API to ``festo-dev-configurator`` so
+examples and callers share its canonical superset resource. The network
+addresses in that resource are illustrative and must be checked before hardware use.
 """
 
 import json
 from importlib.resources import files
 from typing import Any
 
-_EXAMPLE_CONFIG_RESOURCE = "data/example-config.json"
-
-# TODO: Remove this and write a helper in the examples that pulls this from a single repository of configs; singular source of truth so config mods happen once and are propagated
-#
+_EXAMPLE_CONFIG_RESOURCE = "data/superset-config.json"
 
 
 def example_config_path() -> Any:
     """Return a traversable path to the bundled example configuration JSON.
 
     Returns:
-        Importable-resource path to ``example-config.json``.
+        Importable-resource path to the configurator's ``superset-config.json``.
     """
-    return files("fluid_control").joinpath(_EXAMPLE_CONFIG_RESOURCE)
+    return files("configurator").joinpath(_EXAMPLE_CONFIG_RESOURCE)
 
 
 def load_example_config() -> dict[str, Any]:

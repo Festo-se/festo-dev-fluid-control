@@ -8,7 +8,7 @@
 
 A **pressure-over-liquid** instrument pressurises a liquid reservoir with the PGVA and opens a solenoid valve via the VAEM for a precisely calibrated duration. The duration is determined by a per-channel, per-liquid-class calibration curve that maps target volume (µL) to valve opening time (ms).
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │              festo-dev-fluid-control             │
 │                                                  │
@@ -29,15 +29,13 @@ The `Dispenser` class is the primary entry point for fixed-volume, non-aspiratin
 ## Quick Start
 
 ```python
-import json
-from fluid_control import Dispenser
+from fluid_control import Dispenser, load_example_config
 
-# Load your instrument configuration
-with open("micro-dispenser-config.json") as fh:
-    config = json.load(fh)
+# Load the configurator package's canonical Spec 4.0 superset.
+config = load_example_config()
 
-# Instantiate the dispenser — hardware connection is established here
-dispenser = Dispenser(config=config, component_id="micro-dispenser")
+# Select a component — hardware connection is established here.
+dispenser = Dispenser(config=config, component_id="dispenser_1")
 
 # Dispense 25 µL of water on channel 1
 dispenser.dispense({

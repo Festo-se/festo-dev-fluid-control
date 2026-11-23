@@ -1,6 +1,6 @@
 # Dispenser Examples
 
-These examples walk through common dispensing workflows using the `Dispenser` class. Each example builds on the previous one. All examples assume a config file is available — see the [Configuration Guide](../configuration/index.md) for the full schema.
+These examples walk through common dispensing workflows using the `Dispenser` class. They use the configurator package's canonical example configuration; its addresses are illustrative and must be checked before connecting to hardware. See the [Configuration Guide](../configuration/index.md) for the schema.
 
 For aspiration, mixing, and tip handling, see the [Pipettor Examples](pipettor.md).
 
@@ -11,14 +11,12 @@ For aspiration, mixing, and tip handling, see the [Pipettor Examples](pipettor.m
 Configuration is stored as JSON and passed to `Dispenser` as a plain Python `dict`. Load it with the standard `json` module:
 
 ```python
-import json
-from fluid_control import Dispenser
+from fluid_control import Dispenser, load_example_config
 
-with open("micro-dispenser-config.json") as fh:
-    config = json.load(fh)
+config = load_example_config()
 ```
 
-The `component_id` argument selects which component entry inside `config["component_config"]["components"]` to use. It must match a key in that dict exactly.
+The `component_id` argument selects an entry inside `config["component_config"]["components"]`. Use `dispenser_1` for the two-channel dispenser in the canonical superset.
 
 ---
 
@@ -27,13 +25,11 @@ The `component_id` argument selects which component entry inside `config["compon
 Instantiate a `Dispenser`, then call `dispense()` with a dict mapping channel IDs to operation parameters.
 
 ```python
-import json
-from fluid_control import Dispenser
+from fluid_control import Dispenser, load_example_config
 
-with open("micro-dispenser-config.json") as fh:
-    config = json.load(fh)
+config = load_example_config()
 
-dispenser = Dispenser(config=config, component_id="micro-dispenser")
+dispenser = Dispenser(config=config, component_id="dispenser_1")
 
 # Dispense 25 µL of water on channel 1
 dispenser.dispense({
@@ -97,12 +93,11 @@ print(list(dispenser.get_liquid_classes()))
 
 ```python
 import json
-from fluid_control import Dispenser
+from fluid_control import Dispenser, load_example_config
 
-with open("micro-dispenser-config.json") as fh:
-    config = json.load(fh)
+config = load_example_config()
 
-with Dispenser(config=config, component_id="micro-dispenser") as dispenser:
+with Dispenser(config=config, component_id="dispenser_1") as dispenser:
     dispenser.dispense({
         1: {"volume": 30.0, "liquid_class": "water"}
     })
@@ -144,7 +139,16 @@ Combine this with a gravimetric balance to measure dispensed volumes at known op
 
 ---
 
-## 8. Macro Dispenser with External Pressure Control
+## 8. Pressure Regulator Data
+
+The configurator superset preserves a separate `pressure_regulator` declaration
+for future integration. This fluid-control migration selects the
+`pressure_generator` block and does not add regulator runtime support. Existing
+caller-injected pressure controllers remain available through the constructor's
+`pressure_control` argument; that API does not make the regulator declaration an
+automatic runtime source.
+
+### 8.1 Macro Dispenser with External Pressure Control
 
 The macro-dispenser configuration uses an external pressure regulator (e.g. a VEAB channel on a motion controller) instead of a standalone PGVA. Pass pre-initialised `pressure_control` and `valve_control` objects to skip internal hardware initialisation:
 

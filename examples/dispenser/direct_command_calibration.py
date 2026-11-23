@@ -22,7 +22,7 @@ from fluid_control import Dispenser, example_config_path
 
 def main() -> None:
     """Open channel 1 for a sweep of opening times at a fixed pressure."""
-    with Dispenser(config=example_config_path(), component_id="micro-dispenser") as dispenser:
+    with Dispenser(config=example_config_path(), component_id="dispenser_1") as dispenser:
         for opening_time_ms in (80, 100, 120, 140):
             result = dispenser.direct_command(
                 channel_times={1: opening_time_ms},

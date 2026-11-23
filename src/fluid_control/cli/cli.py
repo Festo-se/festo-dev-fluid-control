@@ -122,6 +122,10 @@ class _OfflineAxis:
 class _OfflineGantry(Gantry):
     """Fallback gantry object used when the configured hardware is unavailable."""
 
+    def __new__(cls, axis_names: list[str], error: str) -> "_OfflineGantry":
+        """Allocate the offline stub without invoking Gantry's config resolver."""
+        return object.__new__(cls)
+
     def __init__(self, axis_names: list[str], error: str) -> None:
         self.axes = {name: _OfflineAxis(name) for name in axis_names}
         self.concurrent_axes = None

@@ -20,7 +20,7 @@ from fluid_control import Pipettor, example_config_path
 
 def main() -> None:
     """Aspirate 50 uL of water on channel 1, then dispense it."""
-    with Pipettor(config=example_config_path(), component_id="pipettor") as pipettor:
+    with Pipettor(config=example_config_path(), component_id="pipettor_1") as pipettor:
         pipettor.aspirate({1: {"volume": 50.0, "liquid_class": "water"}})
         pipettor.dispense({1: {"volume": 50.0, "liquid_class": "water"}})
 

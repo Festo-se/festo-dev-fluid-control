@@ -21,7 +21,7 @@ returns a group, and the parent mounts it with
 
 Run it (requires the ``cli`` extra and a valid config)::
 
-    python examples/composable_cli.py --config micro-dispenser-config.json --component-id micro-dispenser --gantry-config gantry.json
+    python examples/composable_cli.py --component-id pipettor_1
 """
 
 import argparse
@@ -30,7 +30,7 @@ from pathlib import Path
 
 from applied_motion import Gantry
 
-from fluid_control import Aspirator, Dispenser, Pipettor
+from fluid_control import Aspirator, Dispenser, Pipettor, load_example_config
 from fluid_control.cli.commands import build_gantry_group, build_group
 from fluid_control.cli.compose.core import CommandGroup
 from fluid_control.cli.compose.repl import run_repl
@@ -63,15 +63,14 @@ def build_liquid_handling_cli(session: FluidControlSession) -> CommandGroup:
 def main() -> None:
     """Entry point for the composable liquid-handling CLI example."""
     parser = argparse.ArgumentParser(description="Composable liquid-handling CLI example.")
-    parser.add_argument("--config", required=True, type=Path, help="Fluid-control config JSON path.")
-    parser.add_argument("--component-id", required=True, help="Component ID key inside the config.")
+    parser.add_argument("--config", type=Path, default=None, help="Optional fluid-control config JSON path.")
+    parser.add_argument("--component-id", default="pipettor_1", help="Component ID key inside the config.")
     parser.add_argument("--gantry-config", type=Path, default=None, help="Optional gantry config JSON path.")
     parser.add_argument("--gantry-id", default="gantry_1", help="Gantry component ID (default: gantry_1).")
     parser.add_argument("--mount-axis", default="Z", help="Mount-arm axis name (default: Z).")
     args = parser.parse_args()
 
-    config = json.loads(args.config.read_text(encoding="utf-8"))
-    # TODO: All that should be necessary is the path right?
+    config = load_example_config() if args.config is None else json.loads(args.config.read_text(encoding="utf-8"))
     normalized = config.get("component_config", config)
     component_config = normalized["components"][args.component_id]
     component_type = component_config.get("component_class", component_config.get("component_type"))

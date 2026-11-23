@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from types import SimpleNamespace
 
 import pytest
-from configurator import ComponentView, Configurator, Registration, Registry, RuntimeRegistry, ValidationError
+from configurator import BuilderError, ComponentView, Configurator, Registration, Registry, RuntimeRegistry, ValidationError
 
 from fluid_control.aspirator import Aspirator
 from fluid_control.configurator_adapter import (
@@ -17,7 +17,6 @@ from fluid_control.configurator_adapter import (
     pipettor_registration,
 )
 from fluid_control.dispenser import Dispenser
-from fluid_control.device_config import DeviceConfig
 from fluid_control.pipettor import Pipettor
 
 
@@ -79,7 +78,7 @@ def test_pipettor_builder_passes_explicit_runtime_axes(mocker, eight_channel_pip
     mount_arm = MagicMock()
     disabled = (MagicMock(), MagicMock())
     pipettor = MagicMock(spec=Pipettor)
-    builder = mocker.patch("fluid_control.configurator_adapter.Pipettor", return_value=pipettor)
+    builder = mocker.patch("fluid_control.configurator_adapter.Pipettor._from_component_data", return_value=pipettor)
 
     build_pipettor_from_view(
         _view(eight_channel_pipettor_config, "pipettor_1", "pipettor"),
@@ -102,7 +101,7 @@ def test_pipettor_builder_resolves_configured_motion_axes_from_gantry_dependency
     axes = {name: MagicMock(name=name) for name in ("X", "Y", "ZP")}
     gantry = SimpleNamespace(axes=axes)
     pipettor = MagicMock(spec=Pipettor)
-    builder = mocker.patch("fluid_control.configurator_adapter.Pipettor", return_value=pipettor)
+    builder = mocker.patch("fluid_control.configurator_adapter.Pipettor._from_component_data", return_value=pipettor)
 
     build_pipettor_from_view(
         _view(eight_channel_pipettor_config, "pipettor_1", "pipettor"),
@@ -155,6 +154,7 @@ def test_config_backed_pipettor_builds_related_gantry_and_exposes_shared_runtime
         "axis_order": ["X", "Y", "ZP"],
     }
     config = {
+        "spec_version": "4.0",
         "components": {
             **eight_channel_pipettor_config["components"],
             **dispenser_config["components"],
@@ -297,8 +297,8 @@ def test_all_fluid_builders_use_injected_controller_options(mocker, dispenser_co
         assert instance.valve_control is valve_control
 
 
-def test_bootstrap_selected_view_preserves_device_config_compatibility(mocker, dispenser_config):
-    """A configurator-selected component preserves the legacy device view contract."""
+def test_bootstrap_selected_view_preserves_component_mapping_behavior(mocker, dispenser_config):
+    """A configurator-selected component is shared directly with the runtime instance."""
     _mock_controllers(mocker)
     selected_component = dispenser_config["components"]["dispenser_1"]
 
@@ -309,33 +309,29 @@ def test_bootstrap_selected_view_preserves_device_config_compatibility(mocker, d
     )
     dispenser = result.instance
 
-    assert dispenser.device_config.raw is selected_component
     assert dispenser.config is selected_component
-    assert dispenser.device_config.active_channels == [1, 2]
-    assert dispenser.device_config.active_valve_count == 2
-    assert dispenser.device_config.pressure_interface.name == "pgva"
-    assert dispenser.device_config.pressure_interface.ip == "192.168.10.102"
-    assert dispenser.device_config.pressure_interface.port == 502
-    assert dispenser.device_config.pressure_interface.unit_id == 1
-    assert dispenser.device_config.valve_interface.name == "vaem"
-    assert dispenser.device_config.valve_interface.ip == "192.168.10.27"
-    assert dispenser.device_config.valve_interface.port == 502
-    assert dispenser.device_config.valve_interface.unit_id == 1
-    assert dispenser.device_config.valve_error_handling is True
+    assert dispenser.active_channels == [1, 2]
+    assert dispenser.active_valve_count == 2
+    assert dispenser.pressure_control_config.ip == "192.168.10.102"
+    assert dispenser.pressure_control_config.port == 502
+    assert dispenser.pressure_control_config.unit_id == 1
+    assert dispenser.valve_control_config.ip == "192.168.10.27"
+    assert dispenser.valve_control_config.port == 502
+    assert dispenser.valve_control_config.unit_id == 1
+    assert dispenser.valve_error_handling is True
 
     selected_component["calibration"]["water"]["dispense"]["parameters"]["pressure"] = 999
-    assert dispenser.device_config.calibration["water"]["dispense"]["parameters"]["pressure"] == 999
+    assert dispenser.pressures["water"]["dispense"] == 70
+    dispenser.set_pressures()
+    assert dispenser.pressures["water"]["dispense"] == 999
 
     result.close()
 
 
-def test_bootstrap_builder_uses_pre_resolved_device_config(mocker, dispenser_config):
-    """The canonical builder does not re-resolve the selected component."""
+def test_provider_initializes_selected_component_only_once(mocker, dispenser_config):
+    """The provider initializes the selected mapping without recursive parsing."""
     _mock_controllers(mocker)
-    device_config = mocker.patch(
-        "fluid_control.fluid_control.DeviceConfig",
-        side_effect=AssertionError("constructor reparsed the selected component"),
-    )
+    initialize = mocker.spy(Dispenser, "_initialize_component_data")
 
     result = Configurator.bootstrap(
         dispenser_config,
@@ -344,8 +340,24 @@ def test_bootstrap_builder_uses_pre_resolved_device_config(mocker, dispenser_con
     )
 
     assert result.instance.component_id == "dispenser_1"
-    device_config.assert_not_called()
+    assert result.instance.config is dispenser_config["components"]["dispenser_1"]
+    initialize.assert_called_once()
     result.close()
+
+
+def test_aspirator_retains_aspirate_capability(mocker, dispenser_config):
+    """The aspirator builder keeps the aspiration operation on its runtime class."""
+    _mock_controllers(mocker)
+    component = dispenser_config["components"]["dispenser_1"]
+    component["component_class"] = "aspirator"
+    aspirator = build_aspirator_from_view(_view(dispenser_config, "dispenser_1", "aspirator"))
+    handle_liquid = mocker.patch.object(aspirator, "_handle_liquid")
+    command = {1: {"volume": 50.0, "liquid_class": "water"}}
+
+    aspirator.aspirate(command)
+
+    handle_liquid.assert_called_once_with(command, process="aspirate")
+    aspirator.close()
 
 
 @pytest.mark.parametrize(
@@ -374,7 +386,8 @@ def test_direct_constructors_preserve_injected_controllers(runtime_class, config
 
     assert instance.pressure_control is pressure
     assert instance.valve_control is valve
-    assert isinstance(instance.device_config, DeviceConfig)
+    assert instance.config == component
+    assert not hasattr(instance, "device_config")
     instance.close()
     pressure.close.assert_not_called()
     valve.close.assert_not_called()
@@ -392,7 +405,7 @@ def test_bootstrap_selected_view_aggregates_valve_error_handling(mocker, dispens
         Registry.compose(*fluid_control_registrations()),
     )
 
-    assert result.instance.device_config.valve_error_handling is False
+    assert result.instance.valve_error_handling is False
     result.close()
 
 
