@@ -15,12 +15,12 @@ the illustrative addresses in the canonical configuration before running on
 hardware, or provide your own Spec 4.0 configuration.
 """
 
-from fluid_control import Dispenser, example_config_path
+from fluid_control import Dispenser, load_example_config
 
 
 def main() -> None:
     """Dispense 25 uL of water on channel 1."""
-    with Dispenser(config=example_config_path(), component_id="dispenser_1") as dispenser:
+    with Dispenser(config=load_example_config(), component_id="dispenser_1") as dispenser:
         dispenser.dispense({1: {"volume": 25.0, "liquid_class": "water"}})
 
 

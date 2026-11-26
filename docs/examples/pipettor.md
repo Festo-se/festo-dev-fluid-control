@@ -104,10 +104,10 @@ engagement come from a connected `Gantry` — `gantry.axes` maps axis names to
 `axes_disable_for_pickup` config fields:
 
 ```python
-from fluid_control import Pipettor, example_config_path
+from fluid_control import Pipettor, load_example_config
 
 # The selected component declares its gantry relationship and axis names.
-pipettor = Pipettor(config=example_config_path(), component_id="pipettor_1")
+pipettor = Pipettor(config=load_example_config(), component_id="pipettor_1")
 
 pickup = pipettor.pickup_tips(duration=0.5)
 print(pickup.code, pickup.message)   # 0 'Tips picked up successfully'
