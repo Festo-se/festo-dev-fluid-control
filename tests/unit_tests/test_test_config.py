@@ -25,7 +25,8 @@ pipettor component
 
 import pytest
 
-from fluid_control import Dispenser, Pipettor
+from configurator import load_consolidated_config
+from fluid_control import Dispenser, Pipettor, load_example_config
 from fluid_control.fluid_control import PressureOverLiquidControl
 
 # ---------------------------------------------------------------------------
@@ -34,6 +35,12 @@ from fluid_control.fluid_control import PressureOverLiquidControl
 
 
 class TestTestConfigFile:
+    def test_example_config_uses_configurator_consolidated_loader(self, monkeypatch):
+        expected = {"spec_version": "4.0"}
+        monkeypatch.setattr("fluid_control.reference_config.load_consolidated_config", lambda: expected)
+
+        assert load_example_config() is expected
+
     def test_component_config_key_present(self, test_config):
         assert "component_config" in test_config
         assert test_config["spec_version"] == "4.0"

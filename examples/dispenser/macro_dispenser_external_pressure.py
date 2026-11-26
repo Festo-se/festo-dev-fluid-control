@@ -13,12 +13,12 @@ The addresses are illustrative. Do not run this example against hardware until
 they have been checked and replaced for the target instrument.
 """
 
-from fluid_control import Dispenser, example_config_path
+from fluid_control import Dispenser, load_example_config
 
 
 def main() -> None:
     """Construct the canonical dispenser through its pressure generator."""
-    with Dispenser(config=example_config_path(), component_id="dispenser_1") as dispenser:
+    with Dispenser(config=load_example_config(), component_id="dispenser_1") as dispenser:
         print(f"Selected PGVA at {dispenser.pressure_control_config.ip}:{dispenser.pressure_control_config.port}")
 
 

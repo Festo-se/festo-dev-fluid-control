@@ -40,11 +40,11 @@ def _bind_runtime(instance: Any, runtime: RuntimeRegistry | None) -> Any:
 
 
 def _pipettor_dependencies(view: ComponentView) -> tuple[ComponentDependency, ...]:
-    """Resolve an optional mount gantry only when it belongs to this source."""
+    """Declare an optional mount gantry for source-local preflight validation."""
     mount_gantry = view.get("mount_gantry")
     name = mount_gantry.get("name") if isinstance(mount_gantry, Mapping) else None
-    components = view.root.get("components")
-    if isinstance(name, str) and name and isinstance(components, Mapping) and name in components:
+    if isinstance(name, str) and name:
+        logger.debug("Pipettor %r declares gantry dependency %r", view.name, name)
         return (ComponentDependency(name, "gantry", f"{view.path}.mount_gantry.name"),)
     return ()
 
@@ -130,6 +130,14 @@ def validate_fluid_view(view: ComponentView, **_: Any) -> None:
     component = _validate_component_view(view, view.component_type)
     if view.root.get("spec_version") != "4.0":
         raise ValueError("Fluid-control configs require root spec_version '4.0'")
+    if view.component_type == "pipettor":
+        mount_gantry = component.get("mount_gantry")
+        if mount_gantry is not None and (
+            not isinstance(mount_gantry, Mapping)
+            or not isinstance(mount_gantry.get("name"), str)
+            or not mount_gantry["name"]
+        ):
+            raise ValueError("pipettor mount_gantry must contain a non-empty string name")
     control_modules = component["control_modules"]
     pressure_module = control_modules["pressure_generator"]
     valve_module = control_modules["valve"]

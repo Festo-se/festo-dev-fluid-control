@@ -21,12 +21,12 @@ Uses the configurator package's canonical superset. Its hardware addresses are
 illustrative and must be checked before connecting.
 """
 
-from fluid_control import Pipettor, example_config_path
+from fluid_control import Pipettor, load_example_config
 
 
 def main() -> None:
     """Pick up tips, then eject them, printing each operation result."""
-    with Pipettor(config=example_config_path(), component_id="pipettor_1") as pipettor:
+    with Pipettor(config=load_example_config(), component_id="pipettor_1") as pipettor:
         pickup_result = pipettor.pickup_tips(duration=0.5)
         print(f"pickup: code={pickup_result.code}, message={pickup_result.message!r}")
 

@@ -4,7 +4,17 @@ from unittest.mock import MagicMock
 from types import SimpleNamespace
 
 import pytest
-from configurator import BuilderError, ComponentView, Configurator, Registration, Registry, RuntimeRegistry, ValidationError
+from configurator import (
+    BuilderError,
+    ComponentDependency,
+    ComponentView,
+    Configurator,
+    Registration,
+    Registry,
+    RuntimeRegistry,
+    SelectionError,
+    ValidationError,
+)
 
 from fluid_control.aspirator import Aspirator
 from fluid_control.configurator_adapter import (
@@ -72,6 +82,7 @@ def test_registration_metadata_and_dispatch(dispenser_config, eight_channel_pipe
     assert registry.get(pipettor_view).builder is build_pipettor_from_view
     assert all(callable(registration.cleanup) for registration in registrations)
     assert all(callable(registration.validator) for registration in registrations)
+    assert all(registration.schema_versions == frozenset({"3.0"}) for registration in registrations)
 
 
 def test_pipettor_builder_passes_explicit_runtime_axes(mocker, eight_channel_pipettor_config):
@@ -117,11 +128,31 @@ def test_pipettor_registration_declares_same_source_gantry_dependency(eight_chan
     component["mount_gantry"] = {"name": "gantry_2"}
     eight_channel_pipettor_config["components"]["gantry_2"] = {"component_class": "gantry", "axes": {}}
 
-    dependencies = pipettor_registration().component_dependencies(
-        _view(eight_channel_pipettor_config, "pipettor_1", "pipettor")
+    dependency_callback = pipettor_registration().component_dependencies
+    assert dependency_callback is not None
+    dependencies = dependency_callback(_view(eight_channel_pipettor_config, "pipettor_1", "pipettor"))
+
+    assert dependencies == (ComponentDependency("gantry_2", "gantry", "components.pipettor_1.mount_gantry.name"),)
+
+
+def test_missing_pipettor_gantry_reference_fails_before_builder(mocker, eight_channel_pipettor_config):
+    eight_channel_pipettor_config["components"]["pipettor_1"]["mount_gantry"] = {"name": "missing_gantry"}
+    built = []
+    mocker.patch(
+        "fluid_control.configurator_adapter.Pipettor._from_component_data",
+        side_effect=lambda *args, **kwargs: built.append(args[0]),
     )
 
-    assert [(dependency.name, dependency.component_type) for dependency in dependencies] == [("gantry_2", "gantry")]
+    with pytest.raises(SelectionError) as error:
+        Configurator.bootstrap(
+            eight_channel_pipettor_config,
+            "pipettor_1",
+            Registry([pipettor_registration()]),
+        )
+
+    assert error.value.code == "MISSING_RELATIONSHIP"
+    assert error.value.path == "components.pipettor_1.mount_gantry.name"
+    assert built == []
 
 
 def test_config_backed_pipettor_builds_related_gantry_and_exposes_shared_runtime(
@@ -149,6 +180,7 @@ def test_config_backed_pipettor_builds_related_gantry_and_exposes_shared_runtime
     axes = {name: MagicMock(name=name) for name in ("X", "Y", "ZP")}
     gantry_component = {
         "component_class": "gantry",
+        "component_spec_version": "3.0",
         "backend": "modbus",
         "axes": {name: {"name": name, "ip": f"192.168.0.{index}"} for index, name in enumerate(axes, 10)},
         "axis_order": ["X", "Y", "ZP"],

@@ -522,7 +522,7 @@ class PressureOverLiquidControl(FluidControl):
                 )
                 longest_open_time = max(new_time, longest_open_time)
             if liquid_class is None:
-                raise ValueError("At least one channel command is Required")
+                raise ValueError("At least one channel command is required")
             logger.debug(f"Waiting for {process} pressure: {self.pressures[liquid_class][process]}")
             self._wait_output_pressure(
                 self.pressures[liquid_class][process]

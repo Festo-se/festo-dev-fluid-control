@@ -34,7 +34,6 @@ __all__ = [
     "Dispenser",
     "Aspirator",
     "PressureControl",
-    "example_config_path",
     "load_example_config",
 ]
 
@@ -43,4 +42,4 @@ from fluid_control.pipettor import Pipettor
 from fluid_control.dispenser import Dispenser
 from fluid_control.aspirator import Aspirator
 from fluid_control.pressure_control import PressureControl
-from fluid_control.reference_config import example_config_path, load_example_config  # TODO: Make unnecessary and remove
+from fluid_control.reference_config import load_example_config  # TODO: Make unnecessary and remove
